@@ -596,6 +596,18 @@
   // Pinch-zoom on a Mac trackpad arrives as ctrl+wheel.
   document.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
 
+  // ---------- iOS home-screen app ----------
+
+  // iOS can give the home-screen app a window shorter than the screen, leaving a strip
+  // at the bottom where the home indicator sits. Tell the CSS so the toolbar doesn't
+  // leave room for the home indicator a second time.
+  function measureStrip() {
+    if (!navigator.standalone) return;
+    const long = Math.max(screen.width, screen.height), short = Math.min(screen.width, screen.height);
+    const full = innerWidth > innerHeight ? short : long;
+    document.documentElement.style.setProperty('--strip', Math.max(0, full - innerHeight) + 'px');
+  }
+
   // ---------- start ----------
 
   setCase(true);
@@ -603,7 +615,9 @@
   selectColor(color);
   fit();
   new ResizeObserver(fit).observe(board);
-  window.addEventListener('orientationchange', () => setTimeout(fit, 300));
+  measureStrip();
+  window.addEventListener('resize', measureStrip);
+  window.addEventListener('orientationchange', () => setTimeout(() => { measureStrip(); fit(); }, 300));
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     // When an update takes over, reload to show it, unless something is already drawn.
