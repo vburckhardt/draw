@@ -14,7 +14,6 @@ A drawing page for small kids. It's one canvas with a crayon, a pencil, a marker
 ## Run it
 
 It's published with GitHub Pages at **https://vburckhardt.github.io/draw/**, served straight from `main`, and every push updates it.
-One-time setup: in the repo, go to **Settings → Pages → Build and deployment**, set **Source** to **Deploy from a branch**, then pick branch **main** and folder **/ (root)**.
 
 Any other static host works too (Netlify, `python3 -m http.server`, …).
 
