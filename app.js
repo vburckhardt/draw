@@ -606,6 +606,11 @@
   window.addEventListener('orientationchange', () => setTimeout(fit, 300));
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    // When an update takes over, reload to show it, unless something is already drawn.
+    const hadWorker = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadWorker && !ops.length && baseBlank) location.reload();
+    });
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 })();
