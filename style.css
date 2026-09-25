@@ -38,7 +38,6 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--paper);
   /* no zooming, scrolling, selecting, callouts or bounce: just drawing */
   touch-action: none;
   overscroll-behavior: none;
@@ -48,7 +47,13 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* The iOS home-screen app can stop short of the bottom of the screen (a WebKit bug)
+   and paints the leftover strip with the page background, so make that match the
+   toolbar. The drawing area gets its paper colour from body. */
+html { background: var(--panel); }
+
 body {
+  background: var(--paper);
   position: fixed;
   inset: 0;
   display: flex;
