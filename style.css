@@ -56,14 +56,6 @@ body {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
-/* Home-screen app on iOS: with the see-through status bar, `inset: 0` stops one
-   status-bar height short of the bottom. There's no browser toolbar in this mode,
-   so 100vh is exactly the screen. */
-@media (display-mode: standalone), (display-mode: fullscreen) {
-  body { bottom: auto; height: 100vh; }
-}
-html.standalone body { bottom: auto; height: 100vh; }
-
 #board {
   position: relative;
   flex: 1;
