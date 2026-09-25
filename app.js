@@ -11,7 +11,9 @@
     ['blue', '#2456d6'],
     ['purple', '#8a3fd1'],
     ['pink', '#ff6fb5'],
+    ['peach', '#f6c29b'],
     ['brown', '#8b5a2b'],
+    ['gray', '#9a9a9a'],
     ['black', '#1b1b1b'],
     ['white', '#ffffff'],
   ];
@@ -19,12 +21,17 @@
   // Line widths in CSS pixels.
   const SIZE = { crayon: 18, pencil: 4, marker: 13, eraser: 40 };
 
+  const FONT = '"Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif';
+  const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
   // Strokes kept as vectors so they can be undone; older ones are baked into `base`.
   const MAX_UNDO = 40;
 
   const board = document.getElementById('board');
   const paper = document.getElementById('paper');
   const panel = document.getElementById('panel');
+  const keys = document.getElementById('keys');
+  const caret = document.getElementById('caret');
   const ctx = paper.getContext('2d');
   const base = document.createElement('canvas');
   const bctx = base.getContext('2d');
@@ -35,7 +42,9 @@
   let tool = 'crayon';
   let lastDrawTool = 'crayon';
   let color = COLORS[0][1];
-  let ops = [];              // strokes and clears since `base`
+  let ops = [];              // strokes, letters and clears since `base`
+  let cur = null;            // where the next letter goes: { x, y, size, lineX }
+  let upper = true;          // capital letters on the keyboard
   const live = new Map();    // pointerId -> { stroke, state }
 
   // ---------- canvas sizing ----------
@@ -232,6 +241,7 @@
 
   function renderOp(c, op) {
     if (op.type === 'clear') return wipe(c);
+    if (op.type === 'text') return drawLetter(c, op);
     const st = newState(op);
     while (st.i < op.pts.length) drawPoint(c, op, st);
     if (op.done) drawTail(c, op);
@@ -249,7 +259,7 @@
   // Bake the oldest finished strokes into the base layer.
   let baseBlank = true;
   function trim() {
-    while (ops.length > MAX_UNDO && (ops[0].type === 'clear' || ops[0].done)) {
+    while (ops.length > MAX_UNDO && (ops[0].type !== 'stroke' || ops[0].done)) {
       const op = ops.shift();
       renderOp(bctx, op);
       baseBlank = op.type === 'clear';
@@ -270,6 +280,14 @@
   paper.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
+    if (tool === 'abc') {
+      // Tap the page to choose where the letters go.
+      const p = point(e);
+      const size = letterSize();
+      cur = { x: p.x, y: p.y - size / 2, size, lineX: p.x };
+      showCaret();
+      return;
+    }
     try { paper.setPointerCapture(e.pointerId); } catch (_) {}
     const stroke = {
       type: 'stroke',
@@ -312,6 +330,149 @@
   paper.addEventListener('pointercancel', end);
   paper.addEventListener('lostpointercapture', end);
 
+  // ---------- letters ----------
+
+  function letterSize() {
+    const s = Math.min(board.clientWidth, board.clientHeight) / 7.5;
+    return Math.round(Math.max(36, Math.min(110, s)));
+  }
+
+  function ensureCursor() {
+    if (!cur) {
+      const size = letterSize();
+      cur = { x: 24, y: 20, size, lineX: 24 };
+    }
+  }
+
+  function showCaret() {
+    caret.hidden = tool !== 'abc';
+    if (caret.hidden) return;
+    ensureCursor();
+    caret.style.transform = `translate(${cur.x}px, ${cur.y}px)`;
+    caret.style.height = cur.size + 'px';
+  }
+
+  function drawLetter(c, op) {
+    c.globalCompositeOperation = 'source-over';
+    c.font = `bold ${op.size}px ${FONT}`;
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillStyle = op.color;
+    c.fillText(op.ch, op.x, op.y + op.size / 2);
+  }
+
+  function newLine() {
+    cur.x = cur.lineX;
+    cur.y += cur.size * 1.15;
+  }
+
+  function typeLetter(ch) {
+    stopLive();
+    ensureCursor();
+    ctx.font = `bold ${cur.size}px ${FONT}`;
+    const w = ctx.measureText(ch).width;
+    if (cur.x + w > board.clientWidth - 8 && cur.x > cur.lineX) wrap();
+    const next = cur.x + w + cur.size * 0.06;
+    const op = { type: 'text', ch, color, x: cur.x, y: cur.y, size: cur.size, lineX: cur.lineX, next };
+    ops.push(op);
+    drawLetter(ctx, op);
+    cur.x = next;
+    trim();
+    showCaret();
+  }
+
+  // At the edge of the screen, carry the word being typed down to the next line.
+  function wrap() {
+    const word = [];
+    let x = cur.x;
+    for (let i = ops.length - 1; i >= 0; i--) {
+      const op = ops[i];
+      if (op.type !== 'text' || op.y !== cur.y || op.next !== x) break;
+      word.unshift(op);
+      x = op.x;
+    }
+    if (!word.length || word[0].x <= cur.lineX) return newLine();
+    const dx = word[0].x - cur.lineX, dy = cur.size * 1.15;
+    for (const op of word) {
+      op.x -= dx;
+      op.next -= dx;
+      op.y += dy;
+    }
+    cur.x -= dx;
+    cur.y += dy;
+    redraw();
+  }
+
+  function typeSpace() {
+    ensureCursor();
+    cur.x += cur.size * 0.45;
+    showCaret();
+  }
+
+  function typeEnter() {
+    ensureCursor();
+    newLine();
+    showCaret();
+  }
+
+  // Delete only takes back letters, never drawings.
+  function typeDelete() {
+    const last = ops[ops.length - 1];
+    return !!last && last.type === 'text' && undo();
+  }
+
+  const ICONS = {
+    space: '<svg viewBox="0 0 64 64"><path d="M10 30 V44 H54 V30" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    delete: '<svg viewBox="0 0 64 64"><path d="M22 14 H52 Q56 14 56 18 V46 Q56 50 52 50 H22 L6 32 Z" fill="currentColor"/><path d="M29 24 L45 40 M45 24 L29 40" stroke="var(--panel)" stroke-width="6" stroke-linecap="round"/></svg>',
+    enter: '<svg viewBox="0 0 64 64"><path d="M50 12 V36 Q50 42 44 42 H14" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M24 30 L12 42 L24 54" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+
+  const letterKeys = [];
+  for (const k of [...LETTERS, ...'1234567890', 'space', 'delete', 'enter', 'case']) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'key';
+    b.dataset.key = k;
+    if (k.length === 1) {
+      b.textContent = k;
+      if (/\d/.test(k)) b.classList.add('digit');
+      else letterKeys.push(b);
+    } else if (k === 'case') {
+      b.classList.add('special', 'case');
+      b.setAttribute('aria-label', 'Capital or small letters');
+    } else {
+      b.classList.add('special');
+      b.innerHTML = ICONS[k];
+      b.setAttribute('aria-label', k);
+    }
+    keys.appendChild(b);
+  }
+  const caseKey = keys.querySelector('[data-key="case"]');
+
+  function setCase(up) {
+    upper = up;
+    for (const b of letterKeys) b.textContent = up ? b.dataset.key : b.dataset.key.toLowerCase();
+    caseKey.textContent = up ? 'abc' : 'ABC';
+  }
+
+  function press(k) {
+    if (k === 'space') typeSpace();
+    else if (k === 'delete') typeDelete();
+    else if (k === 'enter') typeEnter();
+    else if (k === 'case') setCase(!upper);
+    else typeLetter(/\d/.test(k) ? k : upper ? k : k.toLowerCase());
+  }
+
+  keys.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const b = e.target.closest('.key');
+    if (!b) return;
+    press(b.dataset.key);
+    b.classList.remove('tap');
+    void b.offsetWidth;
+    b.classList.add('tap');
+  });
+
   // ---------- toolbar ----------
 
   const swatches = COLORS.map(([name, hex]) => {
@@ -328,8 +489,11 @@
 
   function selectTool(t) {
     tool = t;
-    if (t !== 'eraser') lastDrawTool = t;
+    if (t !== 'eraser' && t !== 'abc') lastDrawTool = t;
     for (const b of tools) b.classList.toggle('on', b.dataset.tool === t);
+    keys.hidden = t !== 'abc';
+    board.classList.toggle('typing', t === 'abc');
+    showCaret();
   }
 
   function selectColor(hex) {
@@ -355,8 +519,11 @@
   function undo() {
     stopLive();
     if (!ops.length) return false;
-    ops.pop();
+    const op = ops.pop();
+    // Taking back a letter puts the cursor back where it was.
+    if (op.type === 'text') cur = { x: op.x, y: op.y, size: op.size, lineX: op.lineX };
     redraw();
+    showCaret();
     return true;
   }
 
@@ -380,6 +547,8 @@
     ops.push({ type: 'clear' });
     wipe(ctx);
     trim();
+    cur = null;
+    showCaret();
     return true;
   }
 
@@ -394,11 +563,27 @@
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });
 
-  // Keyboard on a Mac: Cmd/Ctrl+Z undoes.
+  // Keyboard on a Mac: Cmd/Ctrl+Z undoes; typing letters switches to the ABC tool.
   window.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    if (e.metaKey || e.ctrlKey) {
+      if (e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+      }
+      return;
+    }
+    if (e.altKey) return;
+    if (/^[a-z0-9]$/i.test(e.key)) {
       e.preventDefault();
-      undo();
+      if (tool !== 'abc') selectTool('abc');
+      const up = e.shiftKey || upper;
+      typeLetter(up ? e.key.toUpperCase() : e.key.toLowerCase());
+    } else if (tool === 'abc') {
+      const k = { ' ': 'space', Backspace: 'delete', Enter: 'enter' }[e.key];
+      if (k) {
+        e.preventDefault();
+        press(k);
+      }
     }
   });
 
@@ -413,6 +598,7 @@
 
   // ---------- start ----------
 
+  setCase(true);
   selectTool('crayon');
   selectColor(color);
   fit();

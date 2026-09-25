@@ -20,7 +20,11 @@
 <body>
   <main id="board">
     <canvas id="paper"></canvas>
+    <div id="caret" hidden></div>
   </main>
+
+  <!-- letter keyboard, shown while the ABC tool is on; keys are added by app.js -->
+  <div id="keys" hidden aria-label="Letters and numbers"></div>
 
   <nav id="panel" aria-label="Drawing tools">
     <button type="button" class="btn action" data-action="undo" aria-label="Undo">
@@ -63,6 +67,17 @@
           <path d="M19 36 H45 V54 Q45 60 39 60 H25 Q19 60 19 54 Z" fill="#3f7be0"/>
           <path d="M19 36 H45" stroke="#fff" stroke-opacity=".6" stroke-width="2"/>
         </g>
+      </svg>
+    </button>
+
+    <button type="button" class="btn tool" data-tool="abc" aria-label="Letters">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <g transform="rotate(12 44 22)">
+          <rect x="31" y="9" width="26" height="26" rx="6" fill="#35b6f0"/>
+          <text x="44" y="30" text-anchor="middle" class="glyph" font-size="19">b</text>
+        </g>
+        <rect class="ink" x="7" y="24" width="34" height="34" rx="8" stroke="#000" stroke-opacity=".15" stroke-width="1.5"/>
+        <text x="24" y="50" text-anchor="middle" class="glyph" font-size="26">A</text>
       </svg>
     </button>
 

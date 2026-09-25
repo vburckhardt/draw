@@ -1,5 +1,5 @@
 // Keeps the app working offline. Serves from cache, refreshes the cache in the background.
-const CACHE = 'draw-v1';
+const CACHE = 'draw-v2';
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
