@@ -17,6 +17,11 @@
     ['black', '#1b1b1b'],
     ['white', '#ffffff'],
   ];
+  // Black on the dark-mode paper (or white on light) looks like "it stopped drawing",
+  // so that swatch becomes teal instead.
+  const SAME_AS_PAPER = { dark: '#1b1b1b', light: '#ffffff' };
+  const TEAL = ['teal', '#14a39a'];
+  const darkMode = matchMedia('(prefers-color-scheme: dark)');
 
   // Line widths in CSS pixels.
   const SIZE = { crayon: 18, pencil: 4, marker: 13, eraser: 40 };
@@ -72,7 +77,10 @@
     c.width = Math.round(w * dpr);
     c.height = Math.round(h * dpr);
     const x = c.getContext('2d');
-    if (old) x.drawImage(old, 0, 0);
+    if (old) {
+      x.drawImage(old, 0, 0);
+      old.width = old.height = 0;   // iOS caps total canvas memory: free it now, not at GC
+    }
     x.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -233,10 +241,19 @@
 
   function wipe(c) {
     c.save();
-    c.setTransform(1, 0, 0, 1, 0, 0);
-    c.globalCompositeOperation = 'source-over';
-    c.clearRect(0, 0, c.canvas.width, c.canvas.height);
-    c.restore();
+    try {
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalCompositeOperation = 'source-over';
+      c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+    } finally {
+      c.restore();
+    }
+  }
+
+  // The canvas scale can be lost if iOS resets the canvas (e.g. in the background);
+  // drawing would then land in the wrong place, so set it again before each stroke.
+  function resetTransform() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   function renderOp(c, op) {
@@ -248,11 +265,17 @@
   }
 
   function redraw() {
+    resetTransform();
     wipe(ctx);
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(base, 0, 0);
-    ctx.restore();
+    if (base.width && base.height) {
+      ctx.save();
+      try {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(base, 0, 0);
+      } finally {
+        ctx.restore();
+      }
+    }
     for (const op of ops) renderOp(ctx, op);
   }
 
@@ -288,6 +311,10 @@
       showCaret();
       return;
     }
+    // First finger down while strokes are still "in progress": their lift was never
+    // reported (iOS can drop it), so finish them instead of leaving them stuck.
+    if (e.isPrimary && live.size) stopLive();
+    resetTransform();
     try { paper.setPointerCapture(e.pointerId); } catch (_) {}
     const stroke = {
       type: 'stroke',
@@ -475,16 +502,26 @@
 
   // ---------- toolbar ----------
 
-  const swatches = COLORS.map(([name, hex]) => {
+  const swatches = COLORS.map(() => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn swatch';
-    b.dataset.color = hex;
-    b.style.setProperty('--c', hex);
-    b.setAttribute('aria-label', name);
     panel.appendChild(b);
     return b;
   });
+
+  function paintSwatches() {
+    const hidden = SAME_AS_PAPER[darkMode.matches ? 'dark' : 'light'];
+    COLORS.forEach(([name, hex], i) => {
+      if (hex === hidden) [name, hex] = TEAL;
+      const b = swatches[i];
+      b.dataset.color = hex;
+      b.style.setProperty('--c', hex);
+      b.setAttribute('aria-label', name);
+    });
+    // If the selected colour just left the palette, switch to its replacement.
+    markColor(color === hidden ? TEAL[1] : color);
+  }
   const tools = [...panel.querySelectorAll('[data-tool]')];
 
   function selectTool(t) {
@@ -496,10 +533,14 @@
     showCaret();
   }
 
-  function selectColor(hex) {
+  function markColor(hex) {
     color = hex;
     document.documentElement.style.setProperty('--ink', hex);
     for (const b of swatches) b.classList.toggle('on', b.dataset.color === hex);
+  }
+
+  function selectColor(hex) {
+    markColor(hex);
     // Picking a colour while erasing means "I want to draw again".
     if (tool === 'eraser') selectTool(lastDrawTool);
   }
@@ -534,22 +575,42 @@
   function clearPage() {
     stopLive();
     if (isBlank()) return false;
-    const ghost = document.createElement('canvas');
-    ghost.width = paper.width;
-    ghost.height = paper.height;
-    ghost.style.width = paper.style.width;
-    ghost.style.height = paper.style.height;
-    ghost.className = 'whoosh';
-    ghost.getContext('2d').drawImage(paper, 0, 0);
-    board.appendChild(ghost);
-    ghost.addEventListener('animationend', () => ghost.remove());
-    setTimeout(() => ghost.remove(), 1000);
+    whoosh();
     ops.push({ type: 'clear' });
     wipe(ctx);
     trim();
     cur = null;
     showCaret();
     return true;
+  }
+
+  // The old drawing flies away. Purely decorative, so it must never stop the clear.
+  function whoosh() {
+    try {
+      const ghost = document.createElement('canvas');
+      ghost.width = paper.width;
+      ghost.height = paper.height;
+      ghost.style.width = paper.style.width;
+      ghost.style.height = paper.style.height;
+      ghost.className = 'whoosh';
+      ghost.getContext('2d').drawImage(paper, 0, 0);
+      board.appendChild(ghost);
+      const done = () => {
+        ghost.remove();
+        ghost.width = ghost.height = 0;   // free the memory right away (iOS canvas limit)
+      };
+      ghost.addEventListener('animationend', done, { once: true });
+      setTimeout(done, 1000);
+    } catch (_) {}
+  }
+
+  // Back from the background: make sure the canvas scale is right and nudge iOS to
+  // repaint the canvas layer. (No full redraw: that would lose older strokes if iOS
+  // had dropped the hidden base layer while keeping the visible one.)
+  function wake() {
+    resetTransform();
+    paper.style.opacity = '0.99';
+    requestAnimationFrame(() => { paper.style.opacity = ''; });
   }
 
   // pointerdown (not click) so taps feel instant and work with several fingers.
@@ -612,11 +673,16 @@
 
   setCase(true);
   selectTool('crayon');
-  selectColor(color);
+  paintSwatches();
+  darkMode.addEventListener('change', paintSwatches);
   fit();
   new ResizeObserver(fit).observe(board);
   measureStrip();
   window.addEventListener('resize', measureStrip);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+  window.addEventListener('pageshow', wake);
+  // iOS threw the canvas away and gave back a blank one: draw everything again.
+  paper.addEventListener('contextrestored', () => { stopLive(); redraw(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { measureStrip(); fit(); }, 300));
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
