@@ -268,3 +268,22 @@ body {
   30% { transform: scale(.8) rotate(-12deg); }
   70% { transform: scale(1.1) rotate(6deg); }
 }
+
+/* ---------- hidden dev HUD (visible only with #dev or after typing "dev") ---------- */
+
+#devhud {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 9999;
+  margin: 0;
+  padding: 10px 12px;
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #0f0;
+  background: rgba(0, 0, 0, .78);
+  border-radius: 8px;
+  pointer-events: none;
+  white-space: pre;
+}
+
+#devhud[hidden] { display: none; }
