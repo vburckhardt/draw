@@ -26,7 +26,9 @@
   <!-- letter keyboard, shown while the ABC tool is on; keys are added by app.js -->
   <div id="keys" hidden aria-label="Letters and numbers"></div>
 
-  <nav id="panel" class="slim" aria-label="Drawing tools">
+  <!-- colour palette, shown until a colour/tool is picked; reopen it from the chip -->
+  <div id="palette" aria-label="Colours"></div>
+  <nav id="panel" aria-label="Drawing tools">
     <button type="button" class="btn action" data-action="undo" aria-label="Undo">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <path d="M24 16 L12 28 L24 40" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>

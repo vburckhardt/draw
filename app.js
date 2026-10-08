@@ -35,6 +35,7 @@
   const board = document.getElementById('board');
   const paper = document.getElementById('paper');
   const panel = document.getElementById('panel');
+  const palette = document.getElementById('palette');
   const keys = document.getElementById('keys');
   const caret = document.getElementById('caret');
   const ctx = paper.getContext('2d');
@@ -506,7 +507,7 @@
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn swatch';
-    panel.appendChild(b);
+    palette.appendChild(b);
     return b;
   });
 
@@ -614,10 +615,10 @@
   }
 
   // pointerdown (not click) so taps feel instant and work with several fingers.
-  // The palette starts slim (a tool and colour are already picked); tapping the
-  // colour chip or the tool that is already on expands it, any pick collapses it again.
-  function setSlim(v) {
-    panel.classList.toggle('slim', v);
+  // The colour palette opens on top of the drawing until a tool or colour is picked;
+  // the chip in the toolbar reopens it, and any pick closes it again.
+  function showPalette(v) {
+    palette.hidden = !v;
   }
 
   panel.addEventListener('pointerdown', (e) => {
@@ -625,17 +626,13 @@
     const b = e.target.closest('.btn');
     if (!b) return;
     if (b.classList.contains('chip')) {
-      setSlim(false);
+      showPalette(true);
     } else if (b.dataset.tool) {
-      if (b.dataset.tool === tool && panel.classList.contains('slim')) {
-        setSlim(false);
-        return;
-      }
       selectTool(b.dataset.tool);
-      setSlim(true);
+      showPalette(false);
     } else if (b.dataset.color) {
       selectColor(b.dataset.color);
-      setSlim(true);
+      showPalette(false);
     }
     else if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }

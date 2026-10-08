@@ -12,7 +12,7 @@
   --key-fg: #2b2b2b;
   --kid-font: "Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
   /* button size: as big as fits 7 buttons across the short side, up to 68px */
-  --s: min(68px, calc((100vmin - 30px) / 8.7));
+  --s: min(68px, calc((100vmin - 30px) / 7.7));
   --gap: calc(var(--s) * .1);
   /* letter key size: 8 keys across the short side, up to 60px */
   --k: min(60px, calc((100vmin - 24px) / 9));
@@ -161,7 +161,7 @@ body {
 #panel {
   flex: none;
   display: grid;
-  grid-template-columns: repeat(8, var(--s));
+  grid-template-columns: repeat(7, var(--s));
   grid-auto-rows: var(--s);
   gap: var(--gap);
   justify-content: center;
@@ -186,6 +186,14 @@ body {
     grid-auto-columns: var(--s);
     align-content: center;
     padding: 12px 10px 12px max(10px, env(safe-area-inset-left));
+    margin: calc(-1 * env(safe-area-inset-top)) 0 calc(-1 * env(safe-area-inset-bottom)) 0;
+    border-top: 0;
+    border-right: 1px solid var(--edge);
+  }
+  #palette {
+    grid-template-columns: repeat(4, var(--s));
+    align-content: center;
+    padding: 10px 12px;
     margin: calc(-1 * env(safe-area-inset-top)) 0 calc(-1 * env(safe-area-inset-bottom)) 0;
     border-top: 0;
     border-right: 1px solid var(--edge);
@@ -241,9 +249,19 @@ body {
 
 .tool svg { padding: 4%; }
 
-#panel.slim .swatch {
-  display: none;
+/* ---------- colour palette ---------- */
+#palette {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(7, var(--s));
+  grid-auto-rows: var(--s);
+  gap: var(--gap);
+  justify-content: center;
+  padding: 10px 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--edge);
 }
+#palette[hidden] { display: none; }
 
 .chip::before {
   content: "";
@@ -252,10 +270,6 @@ body {
   border-radius: 50%;
   background: var(--ink);
   box-shadow: inset 0 0 0 1.5px var(--edge), inset 0 -4px 0 rgba(0, 0, 0, .12), 0 0 0 3px var(--panel), 0 0 0 6px var(--ring);
-}
-
-#panel:not(.slim) .chip {
-  display: none;
 }
 
 .tool.on {
