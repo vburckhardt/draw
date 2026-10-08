@@ -621,22 +621,20 @@
     palette.hidden = !v;
   }
 
-  panel.addEventListener('pointerdown', (e) => {
+  // pointerdown (not click) so taps feel instant and work with several fingers.
+  function onToolbar(e) {
     e.preventDefault();
     const b = e.target.closest('.btn');
     if (!b) return;
-    if (b.classList.contains('chip')) {
-      showPalette(true);
-    } else if (b.dataset.tool) {
-      selectTool(b.dataset.tool);
-      showPalette(false);
-    } else if (b.dataset.color) {
-      selectColor(b.dataset.color);
-      showPalette(false);
-    }
+    if (b.classList.contains('chip')) showPalette(true);
+    else if (b.dataset.tool) { selectTool(b.dataset.tool); showPalette(false); }
+    else if (b.dataset.color) { selectColor(b.dataset.color); showPalette(false); }
     else if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
-  });
+  }
+
+  panel.addEventListener('pointerdown', onToolbar);
+  palette.addEventListener('pointerdown', onToolbar);
 
   // Keyboard on a Mac: Cmd/Ctrl+Z undoes; typing letters switches to the ABC tool.
   window.addEventListener('keydown', (e) => {
