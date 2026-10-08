@@ -614,8 +614,8 @@
   }
 
   // pointerdown (not click) so taps feel instant and work with several fingers.
-  // The palette starts full; picking a tool or colour shrinks it to the tool row so
-  // the drawing gets more room. Tapping the tool that is already on brings it back.
+  // The palette starts slim (a tool and colour are already picked); tapping the
+  // colour chip or the tool that is already on expands it, any pick collapses it again.
   function setSlim(v) {
     panel.classList.toggle('slim', v);
   }
@@ -624,7 +624,9 @@
     e.preventDefault();
     const b = e.target.closest('.btn');
     if (!b) return;
-    if (b.dataset.tool) {
+    if (b.classList.contains('chip')) {
+      setSlim(false);
+    } else if (b.dataset.tool) {
       if (b.dataset.tool === tool && panel.classList.contains('slim')) {
         setSlim(false);
         return;

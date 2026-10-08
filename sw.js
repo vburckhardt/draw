@@ -1,5 +1,5 @@
 // Online: always fetch the latest files (and keep a copy). Offline: use the saved copy.
-const CACHE = 'draw-v4';
+const CACHE = 'draw-v5';
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
