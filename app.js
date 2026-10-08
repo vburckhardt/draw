@@ -716,6 +716,20 @@
     if (location.hash === '#dev') setDev(!dev);
   });
 
+  // Four fingers touching the paper at once: the only way to toggle on a phone.
+  // Any stroke dots those taps left are taken back before showing the HUD.
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length < 4) return;
+    stopLive();
+    let n = e.touches.length;
+    while (n-- && ops.length && ops[ops.length - 1].type === 'stroke' &&
+           !ops[ops.length - 1].done && ops[ops.length - 1].pts.length <= 1) {
+      ops.pop();
+    }
+    redraw();
+    setDev(!dev);
+  }, { passive: true });
+
   try { if (localStorage.getItem('draw-dev') === '1') setDev(true); } catch (_) {}
 
   // ---------- keep the page still ----------
