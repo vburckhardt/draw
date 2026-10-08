@@ -693,21 +693,11 @@
   }, 500);
 
   let build = { branch: '?', commit: '?', time: '?', preview: false };
-  {
-    const cached = sessionStorage.getItem('draw-build');
-    if (cached) {
-      try { build = JSON.parse(cached); } catch (_) {}
-    } else {
-      fetch('build.json', { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => {
-          if (!j) return;
-          build = j;
-          try { sessionStorage.setItem('draw-build', JSON.stringify(j)); } catch (_) {}
-        })
-        .catch(() => {});
-    }
-  }
+  // Never cached: the point is to see which deploy is *currently* live.
+  fetch('build.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => { if (j) build = j; })
+    .catch(() => {});
 
   function setDev(on) {
     dev = on;
