@@ -1,5 +1,6 @@
-// Online: always fetch the latest files (and keep a copy). Offline: use the saved copy.
-const CACHE = "draw-v7";
+// Online: fetch the whole app as one unit (so HTML/CSS/JS always match), keep a copy.
+// Offline: use the saved copy. Files are only swapped together, never mixed.
+const CACHE = "draw-v8";
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
@@ -8,21 +9,59 @@ const FILES = [
 const TIMEOUT = 4000;
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(FILES))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((c) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  e.respondWith(networkFirst(e));
+  if (e.request.mode === 'navigate') {
+    e.respondWith(pageFirst(e));
+  } else {
+    e.respondWith(networkFirst(e));
+  }
 });
+
+// The page decides the version: fetch the latest HTML; if it changed, refresh the
+// whole cache before showing it, so the app is never half old, half new.
+async function pageFirst(e) {
+  const c = await caches.open(CACHE);
+  try {
+    const r = await fetch(e.request.url, { cache: 'no-cache' });
+    if (r.ok) {
+      const cached = await c.match(e.request, { ignoreSearch: true });
+      const same = cached && (await cached.text()) === (await r.clone().text());
+      if (!same) {
+        await refresh(c);
+      } else {
+        c.put(e.request, r.clone());
+      }
+      return r;
+    }
+  } catch (_) {}
+  return (await c.match(e.request, { ignoreSearch: true })) || fetch(e.request);
+}
+
+// Re-download every file together. On failure keep the previous complete set.
+async function refresh(c) {
+  const old = await Promise.all(FILES.map((f) => c.match(f, { ignoreSearch: true })));
+  try {
+    await c.addAll(FILES);
+  } catch (_) {
+    return;
+  }
+}
 
 async function networkFirst(e) {
   const c = await caches.open(CACHE);
