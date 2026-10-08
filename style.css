@@ -13,6 +13,8 @@
   --kid-font: "Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
   /* button size: as big as fits 7 buttons across the short side, up to 68px */
   --s: min(68px, calc((100vmin - 30px) / 7.7));
+  /* toolbar thickness incl. its padding, for anchoring the floating palette */
+  --bar: calc(var(--s) + 20px + max(10px, env(safe-area-inset-bottom)));
   --gap: calc(var(--s) * .1);
   /* letter key size: 8 keys across the short side, up to 60px */
   --k: min(60px, calc((100vmin - 24px) / 9));
@@ -191,12 +193,9 @@ body {
     border-right: 1px solid var(--edge);
   }
   #palette {
+    right: calc(var(--bar) + var(--gap));
+    bottom: max(12px, env(safe-area-inset-bottom));
     grid-template-columns: repeat(4, var(--s));
-    align-content: center;
-    padding: 10px 12px;
-    margin: calc(-1 * env(safe-area-inset-top)) 0 calc(-1 * env(safe-area-inset-bottom)) 0;
-    border-top: 0;
-    border-right: 1px solid var(--edge);
   }
   #keys {
     grid-template-columns: repeat(5, var(--k));
@@ -251,15 +250,19 @@ body {
 
 /* ---------- colour palette ---------- */
 #palette {
-  flex: none;
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(var(--bar) + var(--gap));
   display: grid;
   grid-template-columns: repeat(7, var(--s));
   grid-auto-rows: var(--s);
   gap: var(--gap);
-  justify-content: center;
-  padding: 10px 12px;
+  padding: 10px;
   background: var(--panel);
-  border-top: 1px solid var(--edge);
+  border-radius: 18px;
+  border: 1px solid var(--edge);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+  z-index: 2;
 }
 #palette[hidden] { display: none; }
 
