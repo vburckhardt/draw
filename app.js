@@ -676,6 +676,8 @@
       Math.round(performance.memory.usedJSHeapSize / 1048576) + '/' +
       Math.round(performance.memory.jsHeapSizeLimit / 1048576) + ' MB' : 'n/a';
     hud.textContent =
+      `build      ${build.branch} @ ${build.commit}\n` +
+      `built      ${build.time}${build.preview ? ' (preview)' : ''}\n` +
       `fps        ${devFPS}\n` +
       `tool       ${tool}${tool === 'eraser' ? ' (last draw: ' + lastDrawTool + ')' : ''}\n` +
       `color      ${color}\n` +
@@ -689,6 +691,23 @@
       `online     ${navigator.onLine}\n` +
       `viewport   ${innerWidth}x${innerHeight} ${screen.orientation ? screen.orientation.type : ''}`;
   }, 500);
+
+  let build = { branch: '?', commit: '?', time: '?', preview: false };
+  {
+    const cached = sessionStorage.getItem('draw-build');
+    if (cached) {
+      try { build = JSON.parse(cached); } catch (_) {}
+    } else {
+      fetch('build.json', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (!j) return;
+          build = j;
+          try { sessionStorage.setItem('draw-build', JSON.stringify(j)); } catch (_) {}
+        })
+        .catch(() => {});
+    }
+  }
 
   function setDev(on) {
     dev = on;
