@@ -190,7 +190,7 @@ body {
 body.busy #panel, body.busy #actions { opacity: .28; }
 
 #panel {
-  right: calc(64px + 8px + max(8px, env(safe-area-inset-right)));
+  right: calc(var(--t) * 1.5 + 16px + max(8px, env(safe-area-inset-right)));
   top: 50%;
   transform: translateY(-50%);
   display: none;
@@ -199,6 +199,8 @@ body.busy #panel, body.busy #actions { opacity: .28; }
   gap: calc(var(--t) * .18);
   padding: calc(var(--t) * .22);
   border-radius: calc(var(--t) * .55);
+  max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
 }
 #panel > .tool { display: inline-grid; }
 #tools-row { display: flex; gap: calc(var(--t) * .18); }

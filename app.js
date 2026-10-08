@@ -832,7 +832,6 @@
   selectTool('crayon');
   markWidth(1);
   markColor(COLORS[0][1]);
-  openPanel(true);
   paintSwatches();
   darkMode.addEventListener('change', paintSwatches);
   fit();
