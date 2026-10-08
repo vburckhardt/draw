@@ -762,6 +762,12 @@
     document.documentElement.style.setProperty('--strip', Math.max(0, full - innerHeight) + 'px');
   }
 
+  // The floating letter keyboard sits just above (or beside) the floating toolbar.
+  function measurePanel() {
+    document.documentElement.style.setProperty('--panel-h', panel.offsetHeight + 'px');
+    document.documentElement.style.setProperty('--panel-w', panel.offsetWidth + 'px');
+  }
+
   // ---------- start ----------
 
   setCase(true);
@@ -771,12 +777,13 @@
   fit();
   new ResizeObserver(fit).observe(board);
   measureStrip();
-  window.addEventListener('resize', measureStrip);
+  measurePanel();
+  window.addEventListener('resize', () => { measureStrip(); measurePanel(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
   window.addEventListener('pageshow', wake);
   // iOS threw the canvas away and gave back a blank one: draw everything again.
   paper.addEventListener('contextrestored', () => { stopLive(); redraw(); });
-  window.addEventListener('orientationchange', () => setTimeout(() => { measureStrip(); fit(); }, 300));
+  window.addEventListener('orientationchange', () => setTimeout(() => { measureStrip(); measurePanel(); fit(); }, 300));
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     // When an update takes over, reload to show it, unless something is already drawn.
