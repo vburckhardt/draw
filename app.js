@@ -614,12 +614,27 @@
   }
 
   // pointerdown (not click) so taps feel instant and work with several fingers.
+  // The palette starts full; picking a tool or colour shrinks it to the tool row so
+  // the drawing gets more room. Tapping the tool that is already on brings it back.
+  function setSlim(v) {
+    panel.classList.toggle('slim', v);
+  }
+
   panel.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
     if (!b) return;
-    if (b.dataset.tool) selectTool(b.dataset.tool);
-    else if (b.dataset.color) selectColor(b.dataset.color);
+    if (b.dataset.tool) {
+      if (b.dataset.tool === tool && panel.classList.contains('slim')) {
+        setSlim(false);
+        return;
+      }
+      selectTool(b.dataset.tool);
+      setSlim(true);
+    } else if (b.dataset.color) {
+      selectColor(b.dataset.color);
+      setSlim(true);
+    }
     else if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });

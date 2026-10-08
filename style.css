@@ -180,7 +180,8 @@ body {
   }
   #panel {
     grid-template-columns: none;
-    grid-template-rows: repeat(7, var(--s));
+    grid-template-rows: none;
+    grid-auto-rows: var(--s);
     grid-auto-flow: column;
     grid-auto-columns: var(--s);
     align-content: center;
@@ -239,6 +240,10 @@ body {
 }
 
 .tool svg { padding: 4%; }
+
+#panel.slim .swatch {
+  display: none;
+}
 
 .tool.on {
   background: var(--chip);
