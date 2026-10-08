@@ -189,10 +189,11 @@ body {
 /* While drawing, the chrome steps back. */
 body.busy #panel, body.busy #actions { opacity: .28; }
 
+/* The picker hangs just under the right-edge strip, docked to the corner,
+   never floating over the middle of the drawing. */
 #panel {
   right: calc(var(--t) * 1.5 + 16px + max(8px, env(safe-area-inset-right)));
-  top: 50%;
-  transform: translateY(-50%);
+  top: calc(10px + max(10px, env(safe-area-inset-top)));
   display: none;
   flex-direction: column;
   align-items: center;
@@ -208,8 +209,8 @@ body.busy #panel, body.busy #actions { opacity: .28; }
 #panel.open { display: flex; animation: pop .22s cubic-bezier(.3, 1.4, .6, 1); }
 
 @keyframes pop {
-  from { transform: translateY(-50%) scale(.85); opacity: 0; }
-  to { transform: translateY(-50%) scale(1); opacity: 1; }
+  from { transform: scale(.85); opacity: 0; transform-origin: top right; }
+  to { transform: scale(1); opacity: 1; transform-origin: top right; }
 }
 
 #actions {
