@@ -623,14 +623,24 @@
     e.preventDefault();
     const b = e.target.closest('.btn');
     if (!b) return;
-    if (b.dataset.tool) selectTool(b.dataset.tool);
+    if (b.dataset.tool) {
+      if (b.classList.contains('on')) panel.classList.remove('collapsed');
+      else { selectTool(b.dataset.tool); panel.classList.add('collapsed'); }
+    }
     else if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });
   palette.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
-    if (b && b.dataset.color) selectColor(b.dataset.color);
+    if (!b) return;
+    if (b.classList.contains('on') || !b.dataset.color) {
+      // Tapping the current colour chip reopens the palette.
+      if (b.classList.contains('on')) palette.classList.remove('collapsed');
+      return;
+    }
+    selectColor(b.dataset.color);
+    palette.classList.add('collapsed');
   });
   actions.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -640,12 +650,23 @@
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });
 
-  // While a finger or pen is drawing, the floating controls step back.
+  // While a finger or pen is drawing, the floating controls step back, and the
+  // colour and tool pills collapse to their active chip. Lifting the pen (or a
+  // pointer hovering near them) expands them again.
   let busyTimer = 0;
   function setBusy(on) {
     clearTimeout(busyTimer);
-    if (on) document.body.classList.add('busy');
-    else busyTimer = setTimeout(() => document.body.classList.remove('busy'), 900);
+    if (on) {
+      document.body.classList.add('busy');
+      panel.classList.add('collapsed');
+      palette.classList.add('collapsed');
+    } else {
+      busyTimer = setTimeout(() => {
+        document.body.classList.remove('busy');
+        panel.classList.remove('collapsed');
+        palette.classList.remove('collapsed');
+      }, 900);
+    }
   }
 
   // Keyboard on a Mac: Cmd/Ctrl+Z undoes; typing letters switches to the ABC tool.

@@ -194,6 +194,12 @@ body {
 /* While drawing, controls step back so the paper owns the screen. */
 body.busy .pill, body.busy #palette { opacity: .28; }
 
+/* Collapsed: only the active item stays, so the pill is a single small chip.
+   Tapping that chip expands the group again (app.js toggles .collapsed). */
+#panel.collapsed .tool:not(.on) { display: none; }
+#palette.collapsed .swatch:not(.on) { display: none; }
+#panel.collapsed, #palette.collapsed { gap: 0; }
+
 #panel {
   top: calc(8px + max(8px, env(safe-area-inset-top)));
   left: calc(8px + max(8px, env(safe-area-inset-left)));
