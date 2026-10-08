@@ -327,6 +327,7 @@
     };
     const state = newState(stroke);
     ops.push(stroke);
+    devStrokes++;
     live.set(e.pointerId, { stroke, state });
     drawPoint(ctx, stroke, state);
   });
@@ -647,6 +648,98 @@
       }
     }
   });
+
+  // ---------- hidden dev mode ----------
+  // Typed "dev" or #dev toggles a HUD with the app's live internals.
+  // Invisible to a normal user: no button, no UI until activated.
+
+  let dev = false;
+  let devFPS = 0;
+  let devFrames = 0;
+  let devStrokes = 0;
+  const hud = document.createElement('pre');
+  hud.id = 'devhud';
+  hud.hidden = true;
+  document.body.appendChild(hud);
+
+  function devTick() {
+    if (!dev) return;
+    devFrames++;
+    requestAnimationFrame(devTick);
+  }
+
+  setInterval(() => {
+    if (!dev) return;
+    devFPS = devFrames;
+    devFrames = 0;
+    const mem = performance.memory ?
+      Math.round(performance.memory.usedJSHeapSize / 1048576) + '/' +
+      Math.round(performance.memory.jsHeapSizeLimit / 1048576) + ' MB' : 'n/a';
+    hud.textContent =
+      `build      ${build.branch} @ ${build.commit}\n` +
+      `built      ${build.time}${build.preview ? ' (preview)' : ''}\n` +
+      `fps        ${devFPS}\n` +
+      `tool       ${tool}${tool === 'eraser' ? ' (last draw: ' + lastDrawTool + ')' : ''}\n` +
+      `color      ${color}\n` +
+      `ops        ${ops.length} (undo cap ${MAX_UNDO}, baked base ${baseBlank ? 'blank' : 'set'})\n` +
+      `live ptr   ${live.size}\n` +
+      `strokes    ${devStrokes}\n` +
+      `canvas     ${W}x${H} css @ dpr ${dpr} (${paper.width}x${paper.height})\n` +
+      `palette    ${darkMode.matches ? 'dark' : 'light'} paper\n` +
+      `heap       ${mem}\n` +
+      `worker     ${navigator.serviceWorker && navigator.serviceWorker.controller ? 'active' : 'none'}\n` +
+      `online     ${navigator.onLine}\n` +
+      `viewport   ${innerWidth}x${innerHeight} ${screen.orientation ? screen.orientation.type : ''}`;
+  }, 500);
+
+  let build = { branch: '?', commit: '?', time: '?', preview: false };
+  // Never cached: the point is to see which deploy is *currently* live.
+  fetch('build.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => { if (j) build = j; })
+    .catch(() => {});
+
+  function setDev(on) {
+    dev = on;
+    hud.hidden = !on;
+    document.documentElement.classList.toggle('dev', on);
+    try { localStorage.setItem('draw-dev', on ? '1' : '0'); } catch (_) {}
+    if (on) { devFrames = 0; requestAnimationFrame(devTick); }
+  }
+
+  // Typing "dev" also types d-e-v on the page; take those letters back on toggle.
+  const devBuf = [];
+  window.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!/^[a-z]$/i.test(e.key)) return;
+    devBuf.push(e.key.toLowerCase());
+    if (devBuf.length > 3) devBuf.shift();
+    if (devBuf.join('') !== 'dev') return;
+    devBuf.length = 0;
+    let n = 3;
+    while (n-- && ops.length && ops[ops.length - 1].type === 'text') undo();
+    setDev(!dev);
+  }, true);
+
+  window.addEventListener('hashchange', () => {
+    if (location.hash === '#dev') setDev(!dev);
+  });
+
+  // Four fingers touching the paper at once: the only way to toggle on a phone.
+  // Any stroke dots those taps left are taken back before showing the HUD.
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length < 4) return;
+    stopLive();
+    let n = e.touches.length;
+    while (n-- && ops.length && ops[ops.length - 1].type === 'stroke' &&
+           !ops[ops.length - 1].done && ops[ops.length - 1].pts.length <= 1) {
+      ops.pop();
+    }
+    redraw();
+    setDev(!dev);
+  }, { passive: true });
+
+  try { if (localStorage.getItem('draw-dev') === '1') setDev(true); } catch (_) {}
 
   // ---------- keep the page still ----------
 
