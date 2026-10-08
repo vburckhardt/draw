@@ -170,75 +170,91 @@ body {
 
 /* ---------- toolbar ---------- */
 
-/* ---------- edge-docked overlay controls ----------
-   The canvas is the app; controls are small floating pills hugging the edges:
-   tools top-left, colours top-right, undo/bin on the right edge. */
+/* ---------- ink toolbar: expanded picker + persistent edge strip ----------
+   Collapsed: a thin right-edge strip (pencil handle, colour badge, undo, bin).
+   Expanded: a floating panel with tools, 5 width dots and the colour grid. */
 
-.pill {
+#panel, #actions {
   position: fixed;
   z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: calc(var(--t) * .12);
-  padding: calc(var(--t) * .16);
-  border: 1px solid var(--edge);
-  border-radius: 999px;
   background: var(--veil);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
+  border: 1px solid var(--edge);
   box-shadow: 0 4px 16px rgba(0, 0, 0, .16);
   color: var(--fg);
   transition: opacity .25s ease;
 }
 
-/* While drawing, controls step back so the paper owns the screen. */
-body.busy .pill, body.busy #palette { opacity: .28; }
-
-/* Collapsed: only the active item stays, so the pill is a single small chip.
-   Tapping that chip expands the group again (app.js toggles .collapsed). */
-#panel.collapsed .tool:not(.on) { display: none; }
-#palette.collapsed .swatch:not(.on) { display: none; }
-#panel.collapsed, #palette.collapsed { gap: 0; }
+/* While drawing, the chrome steps back. */
+body.busy #panel, body.busy #actions { opacity: .28; }
 
 #panel {
-  top: calc(8px + max(8px, env(safe-area-inset-top)));
-  left: calc(8px + max(8px, env(safe-area-inset-left)));
+  right: calc(64px + 8px + max(8px, env(safe-area-inset-right)));
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--t) * .18);
+  padding: calc(var(--t) * .22);
+  border-radius: calc(var(--t) * .55);
+}
+#panel > .tool { display: inline-grid; }
+#tools-row { display: flex; gap: calc(var(--t) * .18); }
+
+#panel.open { display: flex; animation: pop .22s cubic-bezier(.3, 1.4, .6, 1); }
+
+@keyframes pop {
+  from { transform: translateY(-50%) scale(.85); opacity: 0; }
+  to { transform: translateY(-50%) scale(1); opacity: 1; }
 }
 
 #actions {
   right: calc(8px + max(8px, env(safe-area-inset-right)));
-  top: 50%;
-  transform: translateY(-50%);
+  top: calc(10px + max(10px, env(safe-area-inset-top)));
+  display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: calc(var(--t) * .22);
+  padding: calc(var(--t) * .18);
   border-radius: 999px;
 }
 
-/* colour palette: compact two-row block in the top-right corner */
+/* line-width dots: dot diameter encodes the stroke width */
+#widths {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--t) * .25);
+  padding: calc(var(--t) * .1) 0;
+}
+
+#widths .btn {
+  width: calc(var(--t) * .72);
+  height: calc(var(--t) * .72);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+#widths .btn::before {
+  content: "";
+  border-radius: 50%;
+  background: currentColor;
+  width: var(--dot);
+  height: var(--dot);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+#widths .btn.on { box-shadow: 0 0 0 2px var(--chip), 0 0 0 4px var(--ring); border-radius: 50%; }
+
+/* colour grid inside the expanded panel */
 #palette {
-  position: fixed;
-  z-index: 10;
-  top: calc(8px + max(8px, env(safe-area-inset-top)));
-  right: calc(8px + max(8px, env(safe-area-inset-right)));
   display: grid;
   grid-template-columns: repeat(7, var(--d));
   grid-auto-rows: var(--d);
   gap: calc(var(--d) * .16);
-  padding: calc(var(--d) * .2);
-  border: 1px solid var(--edge);
-  border-radius: calc(var(--d) * .4);
-  background: var(--veil);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, .16);
-  transition: opacity .25s ease;
-}
-
-/* Landscape: tools and colours stay in the top corners, undo/bin keeps the right edge. */
-@media (orientation: landscape) {
-  #actions {
-    top: calc(8px + max(8px, env(safe-area-inset-top)) + var(--t) + 16px);
-    transform: none;
-  }
+  padding: calc(var(--d) * .1);
 }
 
 .btn {
@@ -259,12 +275,6 @@ body.busy .pill, body.busy #palette { opacity: .28; }
 }
 
 #actions .btn { width: var(--t); height: var(--t); }
-
-.swatch {
-  width: var(--d);
-  height: var(--d);
-  border-radius: 50%;
-}
 
 .btn svg {
   width: 100%;
@@ -296,6 +306,32 @@ body.busy .pill, body.busy #palette { opacity: .28; }
 }
 
 .tool.on svg { transform: translateY(-6%) scale(1.08); }
+
+/* colour badge in the edge strip: solid current colour over split last colour */
+#badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--t) * .1);
+  pointer-events: none;
+}
+
+#badge i {
+  display: block;
+  width: calc(var(--t) * .5);
+  height: calc(var(--t) * .5);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--edge);
+}
+
+#badge i.split { background: linear-gradient(90deg, var(--c-last) 50%, var(--c) 50%); }
+#badge i.now { background: var(--c); }
+
+.swatch {
+  width: var(--d);
+  height: var(--d);
+  border-radius: 50%;
+}
 
 .swatch::before {
   content: "";

@@ -26,10 +26,9 @@
   <!-- letter keyboard, shown while the ABC tool is on; keys are added by app.js -->
   <div id="keys" hidden aria-label="Letters and numbers"></div>
 
-  <!-- compact colour palette, top-right corner; swatches are added by app.js -->
-  <div id="palette" aria-label="Colours"></div>
-
-  <nav id="panel" class="pill" aria-label="Drawing tools">
+  <!-- ink toolbar: right-edge strip persists; the expanded picker opens from the pencil handle -->
+  <nav id="panel" aria-label="Ink toolbar">
+    <div id="tools-row">
     <button type="button" class="btn tool" data-tool="crayon" aria-label="Crayon">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <path class="ink" d="M26 19 L30.2 6.5 Q32 3 33.8 6.5 L38 19 Z"/>
@@ -76,16 +75,33 @@
         <text x="24" y="50" text-anchor="middle" class="glyph" font-size="26">A</text>
       </svg>
     </button>
+
+    </div>
+
+    <!-- stroke-width dots are added by app.js -->
+    <div id="widths" aria-label="Line width"></div>
+
+    <!-- colour swatches are added by app.js -->
+    <div id="palette" aria-label="Colours"></div>
   </nav>
 
-  <nav id="actions" class="pill" aria-label="Undo and clear">
+  <!-- persistent right-edge strip: pencil handle, colour badge, undo, bin -->
+  <nav id="actions" aria-label="Undo and clear">
+    <button type="button" class="btn handle" data-action="toggle" aria-label="Ink options">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M14 50 L12 52 L14 54 L16 52 Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M17 47 L43 13 L51 21 L25 55 L17 47 Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M40 16 L48 24" stroke="currentColor" stroke-width="4"/>
+        <path d="M17 47 L13 51 L15 53 L19 49" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <div id="badge" aria-hidden="true"></div>
     <button type="button" class="btn action" data-action="undo" aria-label="Undo">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <path d="M24 16 L12 28 L24 40" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M13 28 H38 A14 14 0 0 1 38 56 H28" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
       </svg>
     </button>
-
     <button type="button" class="btn action" data-action="clear" aria-label="Clear page">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <path d="M14 18 H50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
@@ -94,7 +110,6 @@
       </svg>
     </button>
   </nav>
-</body>
 
   <script src="app.js"></script>
 </body>
