@@ -17,6 +17,9 @@
   --gap: calc(var(--s) * .1);
   /* letter key size: 8 keys across the short side, up to 60px */
   --k: min(60px, calc((100vmin - 24px) / 9));
+  /* compact overlay controls: small icons hugging the edges */
+  --t: min(44px, calc(100vmin / 10));   /* tool button */
+  --d: min(38px, calc(var(--t) * .82)); /* swatch dot */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -116,7 +119,7 @@ body {
 #keys {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--panel-h, 0px) + 12px + max(10px, env(safe-area-inset-bottom)));
+  bottom: calc(12px + max(10px, env(safe-area-inset-bottom)));
   transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(8, var(--k));
@@ -167,61 +170,74 @@ body {
 
 /* ---------- toolbar ---------- */
 
-/* The toolbar floats over the paper as a compact pill at the bottom edge
-   (right edge in landscape), so the drawing gets the whole screen. */
-#panel {
+/* ---------- edge-docked overlay controls ----------
+   The canvas is the app; controls are small floating pills hugging the edges:
+   tools top-left, colours top-right, undo/bin on the right edge. */
+
+.pill {
   position: fixed;
-  left: 50%;
-  bottom: max(10px, calc(env(safe-area-inset-bottom) - var(--strip, 0px)));
-  transform: translateX(-50%);
-  display: grid;
-  grid-template-columns: repeat(7, var(--s));
-  grid-auto-rows: var(--s);
-  gap: var(--gap);
-  justify-content: center;
-  padding: 8px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--t) * .12);
+  padding: calc(var(--t) * .16);
   border: 1px solid var(--edge);
-  border-radius: calc(var(--s) * .34);
+  border-radius: 999px;
   background: var(--veil);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .16);
   color: var(--fg);
+  transition: opacity .25s ease;
 }
 
+/* While drawing, controls step back so the paper owns the screen. */
+body.busy .pill, body.busy #palette { opacity: .28; }
+
+#panel {
+  top: calc(8px + max(8px, env(safe-area-inset-top)));
+  left: calc(8px + max(8px, env(safe-area-inset-left)));
+}
+
+#actions {
+  right: calc(8px + max(8px, env(safe-area-inset-right)));
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+  border-radius: 999px;
+}
+
+/* colour palette: compact two-row block in the top-right corner */
+#palette {
+  position: fixed;
+  z-index: 10;
+  top: calc(8px + max(8px, env(safe-area-inset-top)));
+  right: calc(8px + max(8px, env(safe-area-inset-right)));
+  display: grid;
+  grid-template-columns: repeat(7, var(--d));
+  grid-auto-rows: var(--d);
+  gap: calc(var(--d) * .16);
+  padding: calc(var(--d) * .2);
+  border: 1px solid var(--edge);
+  border-radius: calc(var(--d) * .4);
+  background: var(--veil);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .16);
+  transition: opacity .25s ease;
+}
+
+/* Landscape: tools and colours stay in the top corners, undo/bin keeps the right edge. */
 @media (orientation: landscape) {
-  body {
-    flex-direction: row-reverse;
-    border-width: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) 0;
-  }
-  #panel {
-    left: auto;
-    right: max(10px, calc(env(safe-area-inset-right) - var(--strip, 0px)));
-    top: 50%;
-    bottom: auto;
-    transform: translateY(-50%);
-    grid-template-columns: none;
-    grid-template-rows: repeat(7, var(--s));
-    grid-auto-flow: column;
-    grid-auto-columns: var(--s);
-    align-content: center;
-    padding: 10px 8px;
-  }
-  #keys {
-    left: auto;
-    right: calc(var(--panel-w, 0px) + 12px + max(10px, env(safe-area-inset-right)));
-    top: 50%;
-    bottom: auto;
-    transform: translateY(-50%);
-    grid-template-columns: repeat(5, var(--k));
-    align-content: center;
-    padding: 8px 10px;
+  #actions {
+    top: calc(8px + max(8px, env(safe-area-inset-top)) + var(--t) + 16px);
+    transform: none;
   }
 }
 
 .btn {
-  width: var(--s);
-  height: var(--s);
+  width: var(--t);
+  height: var(--t);
   padding: 0;
   margin: 0;
   border: 0;
@@ -234,6 +250,14 @@ body {
   display: grid;
   place-items: center;
   transition: transform .15s ease, background-color .15s ease;
+}
+
+#actions .btn { width: var(--t); height: var(--t); }
+
+.swatch {
+  width: var(--d);
+  height: var(--d);
+  border-radius: 50%;
 }
 
 .btn svg {
@@ -269,17 +293,17 @@ body {
 
 .swatch::before {
   content: "";
-  width: 74%;
-  height: 74%;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background: var(--c);
-  box-shadow: inset 0 0 0 1.5px var(--edge), inset 0 -4px 0 rgba(0, 0, 0, .12);
+  box-shadow: inset 0 0 0 1.5px var(--edge), inset 0 -2px 0 rgba(0, 0, 0, .12);
   transition: transform .15s ease;
 }
 
 .swatch.on::before {
-  transform: scale(1.12);
-  box-shadow: inset 0 0 0 1.5px var(--edge), 0 0 0 3px var(--panel), 0 0 0 6px var(--ring);
+  transform: scale(1.14);
+  box-shadow: inset 0 0 0 1.5px var(--edge), 0 0 0 2px var(--veil), 0 0 0 4px var(--ring);
 }
 
 .bump { animation: bump .35s ease; }

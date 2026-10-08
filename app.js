@@ -329,6 +329,7 @@
     ops.push(stroke);
     devStrokes++;
     live.set(e.pointerId, { stroke, state });
+    setBusy(true);
     drawPoint(ctx, stroke, state);
   });
 
@@ -353,6 +354,7 @@
     l.stroke.done = true;
     drawTail(ctx, l.stroke);
     trim();
+    setBusy(false);
   }
   paper.addEventListener('pointerup', end);
   paper.addEventListener('pointercancel', end);
@@ -503,11 +505,13 @@
 
   // ---------- toolbar ----------
 
+  const palette = document.getElementById('palette');
+  const actions = document.getElementById('actions');
   const swatches = COLORS.map(() => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn swatch';
-    panel.appendChild(b);
+    palette.appendChild(b);
     return b;
   });
 
@@ -620,10 +624,29 @@
     const b = e.target.closest('.btn');
     if (!b) return;
     if (b.dataset.tool) selectTool(b.dataset.tool);
-    else if (b.dataset.color) selectColor(b.dataset.color);
     else if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });
+  palette.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const b = e.target.closest('.btn');
+    if (b && b.dataset.color) selectColor(b.dataset.color);
+  });
+  actions.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const b = e.target.closest('.btn');
+    if (!b) return;
+    if (b.dataset.action === 'undo') { if (undo()) bump(b); }
+    else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
+  });
+
+  // While a finger or pen is drawing, the floating controls step back.
+  let busyTimer = 0;
+  function setBusy(on) {
+    clearTimeout(busyTimer);
+    if (on) document.body.classList.add('busy');
+    else busyTimer = setTimeout(() => document.body.classList.remove('busy'), 900);
+  }
 
   // Keyboard on a Mac: Cmd/Ctrl+Z undoes; typing letters switches to the ABC tool.
   window.addEventListener('keydown', (e) => {
@@ -762,14 +785,6 @@
     document.documentElement.style.setProperty('--strip', Math.max(0, full - innerHeight) + 'px');
   }
 
-  // The floating letter keyboard sits just above (or beside) the floating toolbar.
-  function measurePanel() {
-    document.documentElement.style.setProperty('--panel-h', panel.offsetHeight + 'px');
-    document.documentElement.style.setProperty('--panel-w', panel.offsetWidth + 'px');
-  }
-
-  // ---------- start ----------
-
   setCase(true);
   selectTool('crayon');
   paintSwatches();
@@ -777,13 +792,12 @@
   fit();
   new ResizeObserver(fit).observe(board);
   measureStrip();
-  measurePanel();
-  window.addEventListener('resize', () => { measureStrip(); measurePanel(); });
+  window.addEventListener('resize', measureStrip);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
   window.addEventListener('pageshow', wake);
   // iOS threw the canvas away and gave back a blank one: draw everything again.
   paper.addEventListener('contextrestored', () => { stopLive(); redraw(); });
-  window.addEventListener('orientationchange', () => setTimeout(() => { measureStrip(); measurePanel(); fit(); }, 300));
+  window.addEventListener('orientationchange', () => setTimeout(() => { measureStrip(); fit(); }, 300));
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     // When an update takes over, reload to show it, unless something is already drawn.
