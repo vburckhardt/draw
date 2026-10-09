@@ -10,12 +10,16 @@
   --key: #ffffff;
   --key-digit: #e6f2fb;
   --key-fg: #2b2b2b;
+  --veil: rgba(241, 238, 232, .92);
   --kid-font: "Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
   /* button size: as big as fits 7 buttons across the short side, up to 68px */
-  --s: min(68px, calc((100vmin - 30px) / 7.7));
+  --s: min(60px, calc((100vmin - 30px) / 7.7));
   --gap: calc(var(--s) * .1);
   /* letter key size: 8 keys across the short side, up to 60px */
   --k: min(60px, calc((100vmin - 24px) / 9));
+  /* compact overlay controls: small icons hugging the edges */
+  --t: min(44px, calc(100vmin / 10));   /* tool button */
+  --d: min(38px, calc(var(--t) * .82)); /* swatch dot */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,6 +33,7 @@
     --key: #2e2e2e;
     --key-digit: #22323f;
     --key-fg: #f2f2f2;
+    --veil: rgba(26, 26, 26, .92);
   }
 }
 
@@ -112,15 +117,22 @@ body {
 /* ---------- letter keyboard ---------- */
 
 #keys {
-  flex: none;
+  position: fixed;
+  left: 50%;
+  bottom: calc(12px + max(10px, env(safe-area-inset-bottom)));
+  transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(8, var(--k));
   grid-auto-rows: var(--k);
   gap: calc(var(--k) * .1);
   justify-content: center;
-  padding: 8px 12px;
-  background: var(--panel);
-  border-top: 1px solid var(--edge);
+  padding: 8px;
+  border: 1px solid var(--edge);
+  border-radius: calc(var(--k) * .34);
+  background: var(--veil);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
 }
 
 #keys[hidden] { display: none; }
@@ -158,50 +170,106 @@ body {
 
 /* ---------- toolbar ---------- */
 
-#panel {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(7, var(--s));
-  grid-auto-rows: var(--s);
-  gap: var(--gap);
-  justify-content: center;
-  /* --strip: how much of the home-indicator area is already outside the page (set by app.js) */
-  padding: 10px 12px max(10px, calc(env(safe-area-inset-bottom) - var(--strip, 0px)));
-  margin: 0 calc(-1 * env(safe-area-inset-right)) 0 calc(-1 * env(safe-area-inset-left));
-  background: var(--panel);
-  border-top: 1px solid var(--edge);
+/* ---------- ink toolbar: expanded picker + persistent edge strip ----------
+   Collapsed: a thin right-edge strip (pencil handle, colour badge, undo, bin).
+   Expanded: a floating panel with tools, 5 width dots and the colour grid. */
+
+#panel, #actions {
+  position: fixed;
+  z-index: 10;
+  background: var(--veil);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--edge);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .16);
   color: var(--fg);
+  transition: opacity .25s ease;
 }
 
-@media (orientation: landscape) {
-  body {
-    flex-direction: row-reverse;
-    border-width: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) 0;
-  }
-  #panel {
-    grid-template-columns: none;
-    grid-template-rows: repeat(7, var(--s));
-    grid-auto-flow: column;
-    grid-auto-columns: var(--s);
-    align-content: center;
-    padding: 12px 10px 12px max(10px, env(safe-area-inset-left));
-    margin: calc(-1 * env(safe-area-inset-top)) 0 calc(-1 * env(safe-area-inset-bottom)) 0;
-    border-top: 0;
-    border-right: 1px solid var(--edge);
-  }
-  #keys {
-    grid-template-columns: repeat(5, var(--k));
-    align-content: center;
-    padding: 8px 10px;
-    margin: calc(-1 * env(safe-area-inset-top)) 0 calc(-1 * env(safe-area-inset-bottom)) 0;
-    border-top: 0;
-    border-right: 1px solid var(--edge);
-  }
+/* While drawing, the chrome steps back. */
+body.busy #panel, body.busy #actions { opacity: .28; }
+
+/* The picker hangs just under the right-edge strip, docked to the corner,
+   never floating over the middle of the drawing. */
+#panel {
+  right: calc(var(--t) * 1.5 + 16px + max(8px, env(safe-area-inset-right)));
+  top: calc(10px + max(10px, env(safe-area-inset-top)));
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--t) * .18);
+  padding: calc(var(--t) * .22);
+  border-radius: calc(var(--t) * .55);
+  max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+#panel > .tool { display: inline-grid; }
+#tools-row { display: flex; gap: calc(var(--t) * .18); }
+
+#panel.open { display: flex; animation: pop .22s cubic-bezier(.3, 1.4, .6, 1); }
+
+@keyframes pop {
+  from { transform: scale(.85); opacity: 0; transform-origin: top right; }
+  to { transform: scale(1); opacity: 1; transform-origin: top right; }
+}
+
+#actions {
+  right: calc(8px + max(8px, env(safe-area-inset-right)));
+  top: calc(10px + max(10px, env(safe-area-inset-top)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--t) * .22);
+  padding: calc(var(--t) * .18);
+  border-radius: 999px;
+}
+
+/* line-width dots: dot diameter encodes the stroke width */
+#widths {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--t) * .25);
+  padding: calc(var(--t) * .1) 0;
+}
+
+#widths .btn {
+  width: calc(var(--t) * .72);
+  height: calc(var(--t) * .72);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+#widths .btn::before {
+  content: "";
+  border-radius: 50%;
+  background: currentColor;
+  width: var(--dot);
+  height: var(--dot);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+#widths .btn.on { box-shadow: 0 0 0 2px var(--chip), 0 0 0 4px var(--ring); border-radius: 50%; }
+
+/* colour grid inside the expanded panel */
+#palette {
+  display: grid;
+  grid-template-columns: repeat(7, var(--d));
+  grid-auto-rows: var(--d);
+  gap: calc(var(--d) * .16);
+  padding: calc(var(--d) * .1);
+}
+
+/* Narrow phones: compact the picker so it covers as little of the drawing as
+   possible — the palette wraps to 4 columns and the tools flow onto two rows. */
+@media (max-width: 480px) {
+  #palette { grid-template-columns: repeat(4, var(--d)); }
+  #tools-row { display: grid; grid-template-columns: repeat(3, var(--t)); justify-items: center; }
 }
 
 .btn {
-  width: var(--s);
-  height: var(--s);
+  width: var(--t);
+  height: var(--t);
   padding: 0;
   margin: 0;
   border: 0;
@@ -215,6 +283,8 @@ body {
   place-items: center;
   transition: transform .15s ease, background-color .15s ease;
 }
+
+#actions .btn { width: var(--t); height: var(--t); }
 
 .btn svg {
   width: 100%;
@@ -247,19 +317,44 @@ body {
 
 .tool.on svg { transform: translateY(-6%) scale(1.08); }
 
+/* colour badge in the edge strip: solid current colour over split last colour */
+#badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--t) * .1);
+  pointer-events: none;
+}
+
+#badge i {
+  display: block;
+  width: calc(var(--t) * .5);
+  height: calc(var(--t) * .5);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--edge);
+}
+
+#badge i.now { background: var(--c); }
+
+.swatch {
+  width: var(--d);
+  height: var(--d);
+  border-radius: 50%;
+}
+
 .swatch::before {
   content: "";
-  width: 74%;
-  height: 74%;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background: var(--c);
-  box-shadow: inset 0 0 0 1.5px var(--edge), inset 0 -4px 0 rgba(0, 0, 0, .12);
+  box-shadow: inset 0 0 0 1.5px var(--edge), inset 0 -2px 0 rgba(0, 0, 0, .12);
   transition: transform .15s ease;
 }
 
 .swatch.on::before {
-  transform: scale(1.12);
-  box-shadow: inset 0 0 0 1.5px var(--edge), 0 0 0 3px var(--panel), 0 0 0 6px var(--ring);
+  transform: scale(1.14);
+  box-shadow: inset 0 0 0 1.5px var(--edge), 0 0 0 2px var(--veil), 0 0 0 4px var(--ring);
 }
 
 .bump { animation: bump .35s ease; }

@@ -26,8 +26,19 @@ Draw is a drawing page for small kids: one canvas, a few tools (crayon, pencil, 
 
 ## Testing Instructions
 
-- No automated tests. Manually verify in a browser: drawing, tool switching, undo/clear, letters keyboard, touch and mouse input.
+- **Always run the visual test suite before pushing UI changes** — do not rely on manual review alone, and do not report a change as done without it:
+
+  ```
+  npm install playwright-core
+  npx playwright-core install chromium-headless-shell
+  node test/ui.test.mjs            # or: CHROME_BIN=/path/to/chrome node test/ui.test.mjs
+  ```
+
+  It runs headless Chromium at iPhone size (390x844, dark + light, touch) and checks: strip/picker docking and overlap, picker collapse/expand, colour picking and badge state, busy fade while drawing, undo restoring a blank canvas, and the letters keyboard. It also writes screenshots to `test/` (`shot-{dark,light}-{abc,open}.png`).
+
+- **Always LOOK at the screenshots** after the run: read them back and verify where the UI actually renders (which edge, what overlaps, what is visible). Layout regressions are only caught by inspecting pixels, not by passing assertions. If `CHROME_BIN` is unset, playwright uses its bundled browser; if it fails to launch with missing shared libraries, install the headless shell's deps or point `CHROME_BIN` at any working Chromium.
 - After changing `index.html`, `style.css` or `app.js`, bump the cache version in `sw.js` so returning users get the update.
+- The dev HUD (type "dev", open `#dev`, or 4-finger tap) shows the build stamp of what a device is actually running — useful when a phone shows stale UI.
 
 ## Build and Deployment
 

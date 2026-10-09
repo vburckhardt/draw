@@ -25,6 +25,7 @@
 
   // Line widths in CSS pixels.
   const SIZE = { crayon: 18, pencil: 4, marker: 13, eraser: 40 };
+  const WIDTHS = [.55, .8, 1, 1.6, 2.4];   // stroke-width dots, thin to thick
 
   const FONT = '"Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif';
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -47,6 +48,8 @@
   let tool = 'crayon';
   let lastDrawTool = 'crayon';
   let color = COLORS[0][1];
+  let lastColor = color;
+  let widthMul = 1;
   let ops = [];              // strokes, letters and clears since `base`
   let cur = null;            // where the next letter goes: { x, y, size, lineX }
   let upper = true;          // capital letters on the keyboard
@@ -166,7 +169,7 @@
   }
 
   function width(stroke, p) {
-    const w = SIZE[stroke.tool];
+    const w = SIZE[stroke.tool] * (stroke.tool === 'eraser' ? 1 : widthMul);
     if (!stroke.pen || stroke.tool === 'eraser') return w;
     return w * (0.35 + 1.3 * p);   // Apple Pencil / stylus pressure
   }
@@ -303,6 +306,7 @@
   paper.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
+    openPanel(false);
     if (tool === 'abc') {
       // Tap the page to choose where the letters go.
       const p = point(e);
@@ -329,6 +333,7 @@
     ops.push(stroke);
     devStrokes++;
     live.set(e.pointerId, { stroke, state });
+    setBusy(true);
     drawPoint(ctx, stroke, state);
   });
 
@@ -353,6 +358,7 @@
     l.stroke.done = true;
     drawTail(ctx, l.stroke);
     trim();
+    setBusy(false);
   }
   paper.addEventListener('pointerup', end);
   paper.addEventListener('pointercancel', end);
@@ -503,11 +509,16 @@
 
   // ---------- toolbar ----------
 
+  const palette = document.getElementById('palette');
+  const actions = document.getElementById('actions');
+  const widthsEl = document.getElementById('widths');
+  const badge = document.getElementById('badge');
+  badge.innerHTML = '<i class="now"></i>';
   const swatches = COLORS.map(() => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn swatch';
-    panel.appendChild(b);
+    palette.appendChild(b);
     return b;
   });
 
@@ -523,6 +534,21 @@
     // If the selected colour just left the palette, switch to its replacement.
     markColor(color === hidden ? TEAL[1] : color);
   }
+  const widthDots = WIDTHS.map((m, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn';
+    b.style.setProperty('--dot', (6 + i * 5) + 'px');
+    b.setAttribute('aria-label', (i + 1) + ' of ' + WIDTHS.length + ' line width');
+    widthsEl.appendChild(b);
+    return b;
+  });
+
+  function markWidth(m) {
+    widthMul = m;
+    for (const b of widthDots) b.classList.toggle('on', +b.dataset.mul === m);
+  }
+
   const tools = [...panel.querySelectorAll('[data-tool]')];
 
   function selectTool(t) {
@@ -535,8 +561,11 @@
   }
 
   function markColor(hex) {
+    if (hex !== color) lastColor = color;
     color = hex;
     document.documentElement.style.setProperty('--ink', hex);
+    document.documentElement.style.setProperty('--c', hex);
+    document.documentElement.style.setProperty('--c-last', lastColor);
     for (const b of swatches) b.classList.toggle('on', b.dataset.color === hex);
   }
 
@@ -615,15 +644,52 @@
   }
 
   // pointerdown (not click) so taps feel instant and work with several fingers.
+  // Expanded <-> collapsed: the pencil handle opens the picker; picking a tool or
+  // colour, tapping the page, or drawing with it collapses it again.
+  function openPanel(v) {
+    panel.classList.toggle('open', v);
+    const h = actions.querySelector('.handle');
+    h.setAttribute('aria-expanded', v ? 'true' : 'false');
+  }
+
   panel.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
     if (!b) return;
-    if (b.dataset.tool) selectTool(b.dataset.tool);
-    else if (b.dataset.color) selectColor(b.dataset.color);
+    if (b.dataset.tool) {
+      selectTool(b.dataset.tool);
+      openPanel(false);
+    }
+    else if (b.dataset.mul) { markWidth(+b.dataset.mul); }
+  });
+  widthsEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const b = e.target.closest('.btn');
+    if (b && b.dataset.mul) markWidth(+b.dataset.mul);
+  });
+  palette.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const b = e.target.closest('.btn');
+    if (b && b.dataset.color) { selectColor(b.dataset.color); openPanel(false); }
+  });
+  actions.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const b = e.target.closest('.btn');
+    if (!b) return;
+    if (b.dataset.action === 'toggle') openPanel(!panel.classList.contains('open'));
     else if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });
+
+  // While a finger or pen is drawing, the floating controls step back, and the
+  // colour and tool pills collapse to their active chip. Lifting the pen (or a
+  // pointer hovering near them) expands them again.
+  let busyTimer = 0;
+  function setBusy(on) {
+    clearTimeout(busyTimer);
+    if (on) document.body.classList.add('busy');
+    else busyTimer = setTimeout(() => document.body.classList.remove('busy'), 900);
+  }
 
   // Keyboard on a Mac: Cmd/Ctrl+Z undoes; typing letters switches to the ABC tool.
   window.addEventListener('keydown', (e) => {
@@ -762,10 +828,10 @@
     document.documentElement.style.setProperty('--strip', Math.max(0, full - innerHeight) + 'px');
   }
 
-  // ---------- start ----------
-
   setCase(true);
   selectTool('crayon');
+  markWidth(1);
+  markColor(COLORS[0][1]);
   paintSwatches();
   darkMode.addEventListener('change', paintSwatches);
   fit();
