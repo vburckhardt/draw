@@ -196,7 +196,7 @@ body.busy #panel, body.busy #actions { opacity: .28; }
   top: calc(10px + max(10px, env(safe-area-inset-top)));
   display: none;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch; /* the three palettes share one width */
   gap: calc(var(--t) * .18);
   padding: calc(var(--t) * .22);
   border-radius: calc(var(--t) * .55);
@@ -219,6 +219,9 @@ body.busy #panel, body.busy #actions { opacity: .28; }
 }
 
 #tools-row { flex-wrap: wrap; }
+
+/* the selected tool needs to stand out from its group's chip background */
+.group .tool.on { background: var(--veil); }
 
 #panel.open { display: flex; animation: pop .22s cubic-bezier(.3, 1.4, .6, 1); }
 
@@ -260,18 +263,32 @@ body.busy #panel, body.busy #actions { opacity: .28; }
 
 /* colour grid inside the expanded panel */
 #palette {
-  display: grid;
-  grid-template-columns: repeat(7, var(--d));
-  grid-auto-rows: var(--d);
+  --cols: 7;
+  flex-wrap: wrap;
   gap: calc(var(--d) * .16);
-  padding: calc(var(--d) * .12);
+  padding: calc(var(--d) * .22); /* room for the selected swatch's ring */
+  /* sized to --cols swatches per row; a shorter last row stays centred */
+  width: calc(var(--cols) * var(--d) + (var(--cols) - 1) * var(--d) * .16 + var(--d) * .44 + 1px);
+  align-self: center;
+  min-width: 100%;
 }
+.swatch { flex: none; }
 
 /* Narrow phones: compact the picker so it covers as little of the drawing as
-   possible — the palette wraps to 4 columns and the tools flow onto two rows. */
+   possible — the palette wraps to 5 columns and the tools to 3, short last rows centred. */
 @media (max-width: 480px) {
-  #palette { grid-template-columns: repeat(4, var(--d)); }
-  #tools-row { display: grid; grid-template-columns: repeat(3, var(--t)); justify-items: center; }
+  #palette { --cols: 5; }
+  /* 3 + 2 tools: six half-columns, the second row shifted by one to centre it */
+  #tools-row {
+    display: grid;
+    grid-template-columns: repeat(6, calc(var(--t) / 2));
+    justify-content: center;
+    justify-items: center;
+    column-gap: calc(var(--t) * .09);
+    row-gap: calc(var(--t) * .18);
+  }
+  #tools-row > .tool { grid-column: span 2; }
+  #tools-row > .tool:nth-child(4) { grid-column: 2 / span 2; }
 }
 
 .btn {
