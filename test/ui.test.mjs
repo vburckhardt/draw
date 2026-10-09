@@ -22,65 +22,73 @@ for (const dark of [true, false]) {
   await page.goto(page_);
   await page.waitForTimeout(300);
 
-  // --- collapsed state on load
-  const strip = await page.locator('#actions').boundingBox();
-  ok(strip && strip.x + strip.width > phone.width * 0.8, `${dark ? 'dark' : 'light'}: strip docked to right edge`);
-  ok(strip && strip.y < 80, 'strip at top');
-  const panelHidden = await page.locator('#panel').isVisible().then(v => !v);
-  ok(panelHidden, 'picker hidden on load');
+  const mode = dark ? 'dark' : 'light';
+  const box = (sel) => page.locator(sel).boundingBox();
+  const shown = async (sel) => page.locator(sel).isVisible();
+  const openNow = () => page.evaluate(() => [...document.querySelectorAll('.pop.open')].map((p) => p.id));
 
-  // nothing else visible: panel, keys
-  ok(!(await page.locator('#keys').isVisible()), 'letter keyboard hidden');
+  // --- collapsed state on load: openers strip and a separate actions pill
+  const strip = await box('#pickers');
+  ok(strip && strip.x + strip.width > phone.width * 0.8, `${mode}: openers strip docked to right edge`);
+  ok(strip && strip.y < 80, 'openers strip at top');
+  const acts = await box('#actions');
+  ok(acts && acts.x + acts.width > phone.width * 0.8, 'actions pill docked to right edge');
+  ok(acts && acts.y >= strip.y + strip.height + 4 && acts.y <= strip.y + strip.height + 24,
+    'actions pill sits just below the openers, separate from them');
+  ok((await openNow()).length === 0, 'no palette open on load');
+  ok(!(await shown('#keys')), 'letter keyboard hidden');
 
-  // --- open the picker
-  await page.locator('.handle').tap();
-  await page.waitForTimeout(350);
-  const panel = await page.locator('#panel').boundingBox();
-  ok(!!panel, 'picker opens on handle tap');
-  if (panel) {
-    ok(panel.y < 100 && panel.y + panel.height < phone.height, 'picker docked top-right, on screen');
-    ok(panel.x + panel.width <= strip.x + 4, 'picker does not overlap the strip');
-    ok(panel.x > 20, 'picker not at center-left');
-    ok(panel.y + panel.height < phone.height * 0.5, 'picker stays in the top half of the screen');
-    const gap = strip.x - (panel.x + panel.width);
-    ok(gap >= 4 && gap <= 24, 'picker sits beside the strip with a small gap');
+  // --- three palettes, each from its own opener, one at a time
+  const palettes = [['tools', 5, '.tool'], ['widths', 5, '.btn'], ['palette', 14, '.swatch']];
+  for (const [id, n, item] of palettes) {
+    await page.locator(`[data-open="${id}"]`).tap();
+    await page.waitForTimeout(350);
+    ok(JSON.stringify(await openNow()) === JSON.stringify([id]), `${id}: only its palette opens`);
+    ok(await page.locator(`#${id} ${item}`).count() === n, `${id}: ${n} items`);
+    const pop = await box(`#${id}`);
+    const opener = await box(`[data-open="${id}"]`);
+    ok(pop.x >= 8 && pop.y >= 0 && pop.y + pop.height <= phone.height, `${id}: fully on screen`);
+    const gap = strip.x - (pop.x + pop.width);
+    ok(gap >= 4 && gap <= 24, `${id}: beside the strip with a small gap`);
+    const mid = opener.y + opener.height / 2;
+    ok(pop.y <= mid && pop.y + pop.height >= mid, `${id}: level with its opener`);
+    await page.screenshot({ path: path.join(root, `shot-${mode}-${id}.png`) });
   }
+  // tapping the open palette's opener again closes it
+  await page.locator('[data-open="palette"]').tap();
+  await page.waitForTimeout(200);
+  ok((await openNow()).length === 0, 'tapping the opener again closes its palette');
 
-  // widths and swatches inside the panel only
-  const widthsInPanel = await page.locator('#panel #widths').count();
-  ok(widthsInPanel === 1, 'width dots inside the panel');
-  const swatchCount = await page.locator('#palette .swatch').count();
-  ok(swatchCount === 14, '14 swatches in the palette');
-
-  // --- three separate palettes: tools, widths, colours as distinct groups
-  const groups = await page.evaluate(() => {
-    const box = (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bg: getComputedStyle(el).backgroundColor }; };
-    const ids = ['tools-row', 'widths', 'palette'];
-    const els = ids.map((id) => document.getElementById(id));
-    const boxes = els.map(box);
-    const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-    return {
-      count: document.querySelectorAll('#panel .group').length,
-      ids,
-      boxes,
-      anyOverlap: overlaps(boxes[0], boxes[1]) || overlaps(boxes[1], boxes[2]) || overlaps(boxes[0], boxes[2]),
-      ordered: boxes[0].y + boxes[0].h <= boxes[1].y && boxes[1].y + boxes[1].h <= boxes[2].y,
-      visibleBg: boxes.every((b) => b.w > 0 && b.h > 0 && b.bg !== 'rgba(0, 0, 0, 0)'),
-    };
-  });
-  ok(groups.count === 3, 'three palette groups in the panel (tools, widths, colours)');
-  ok(!groups.anyOverlap, 'palette groups do not overlap each other');
-  ok(groups.ordered, 'palette groups stack in order: tools, widths, colours');
-  ok(groups.visibleBg, 'each palette group has its own visible background');
-
-  // --- pick a colour: panel closes, badge updates
+  // --- pick a colour: palette closes, colour opener updates
+  await page.locator('[data-open="palette"]').tap();
+  await page.waitForTimeout(300);
   await page.locator('#palette .swatch').nth(5).tap();
   await page.waitForTimeout(350);
-  ok(!(await page.locator('#panel').isVisible()), 'picker collapses after colour pick');
+  ok((await openNow()).length === 0, 'palette closes after colour pick');
   const c = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--c').trim());
-  ok(c === '#35b6f0', 'badge colour matches the picked swatch');
-  const badgeDots = await page.locator('#badge i').count();
-  ok(badgeDots === 1, 'exactly one colour dot in the badge');
+  ok(c === '#35b6f0', 'colour opener matches the picked swatch');
+  ok(await page.locator('#badge i').count() === 1, 'exactly one colour dot in the colour opener');
+
+  // --- pick a width: it takes effect and the opener dot grows
+  const dotBefore = (await page.locator('#width-now i').evaluate((e) => e.offsetHeight));
+  await page.locator('[data-open="widths"]').tap();
+  await page.waitForTimeout(300);
+  await page.locator('#widths .btn').nth(4).tap();
+  await page.waitForTimeout(300);
+  ok((await openNow()).length === 0, 'widths close after picking one');
+  ok(await page.locator('#widths .btn.on').count() === 1 && await page.locator('#widths .btn').nth(4).evaluate((b) => b.classList.contains('on')),
+    'picked width is marked');
+  ok((await page.locator('#width-now i').evaluate((e) => e.offsetHeight)) > dotBefore, 'width opener stroke thickens with the line');
+
+  // --- tool opener shows the active tool
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'crayon', 'tool opener shows crayon at start');
+  await page.locator('[data-open="tools"]').tap();
+  await page.waitForTimeout(300);
+  await page.locator('[data-tool="marker"]').tap();
+  await page.waitForTimeout(300);
+  ok((await openNow()).length === 0, 'tools close after picking one');
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'marker', 'tool opener shows the marker after picking it');
+  ok(await page.locator('#tool-now svg').count() === 1, 'tool opener has the tool icon');
 
   // --- draw a stroke: busy fade applies
   await page.mouse.move(100, 400);
@@ -106,19 +114,15 @@ for (const dark of [true, false]) {
   ok(blank, 'undo restores a blank page');
 
   // --- letters keyboard opens with the ABC tool
-  await page.locator('.handle').tap();
+  await page.locator('[data-open="tools"]').tap();
   await page.waitForTimeout(300);
   await page.locator('[data-tool="abc"]').tap();
   await page.waitForTimeout(300);
-  ok(await page.locator('#keys').isVisible(), 'letter keyboard appears for ABC tool');
-  const keys = await page.locator('#keys').boundingBox();
+  ok(await shown('#keys'), 'letter keyboard appears for ABC tool');
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'abc', 'tool opener shows ABC');
+  const keys = await box('#keys');
   ok(keys && keys.y + keys.height <= phone.height + 2, 'keyboard fully on screen at the bottom');
-
-  // screenshot both states for manual review
-  await page.screenshot({ path: path.join(root, `shot-${dark ? 'dark' : 'light'}-abc.png`) });
-  await page.locator('.handle').tap();
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: path.join(root, `shot-${dark ? 'dark' : 'light'}-open.png`) });
+  await page.screenshot({ path: path.join(root, `shot-${mode}-abc.png`) });
 
   ok(errors.length === 0, 'no JS errors (' + (errors[0] || 'none') + ')');
   await ctx.close();

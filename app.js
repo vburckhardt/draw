@@ -35,7 +35,6 @@
 
   const board = document.getElementById('board');
   const paper = document.getElementById('paper');
-  const panel = document.getElementById('panel');
   const keys = document.getElementById('keys');
   const caret = document.getElementById('caret');
   const ctx = paper.getContext('2d');
@@ -306,7 +305,7 @@
   paper.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
-    openPanel(false);
+    closePops();
     if (tool === 'abc') {
       // Tap the page to choose where the letters go.
       const p = point(e);
@@ -510,10 +509,13 @@
   // ---------- toolbar ----------
 
   const palette = document.getElementById('palette');
+  const pickers = document.getElementById('pickers');
   const actions = document.getElementById('actions');
   const widthsEl = document.getElementById('widths');
-  const badge = document.getElementById('badge');
-  badge.innerHTML = '<i class="now"></i>';
+  const toolsEl = document.getElementById('tools');
+  const toolNow = document.getElementById('tool-now');
+  const widthNow = document.getElementById('width-now');
+  const pops = [toolsEl, widthsEl, palette];
   const swatches = COLORS.map(() => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -538,6 +540,7 @@
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn';
+    b.dataset.mul = m;
     b.style.setProperty('--dot', (6 + i * 5) + 'px');
     b.setAttribute('aria-label', (i + 1) + ' of ' + WIDTHS.length + ' line width');
     widthsEl.appendChild(b);
@@ -547,14 +550,21 @@
   function markWidth(m) {
     widthMul = m;
     for (const b of widthDots) b.classList.toggle('on', +b.dataset.mul === m);
+    // the opener's dot is as thick as the chosen line
+    widthNow.style.setProperty('--dot', (6 + WIDTHS.indexOf(m) * 5) + 'px');
   }
 
-  const tools = [...panel.querySelectorAll('[data-tool]')];
+  const tools = [...toolsEl.querySelectorAll('[data-tool]')];
 
   function selectTool(t) {
     tool = t;
     if (t !== 'eraser' && t !== 'abc') lastDrawTool = t;
     for (const b of tools) b.classList.toggle('on', b.dataset.tool === t);
+    // the tool opener shows the active tool
+    const active = tools.find((b) => b.dataset.tool === t);
+    toolNow.innerHTML = active.innerHTML;
+    toolNow.dataset.tool = t;
+    toolNow.setAttribute('aria-label', 'Tools: ' + active.getAttribute('aria-label'));
     keys.hidden = t !== 'abc';
     board.classList.toggle('typing', t === 'abc');
     showCaret();
@@ -644,40 +654,60 @@
   }
 
   // pointerdown (not click) so taps feel instant and work with several fingers.
-  // Expanded <-> collapsed: the pencil handle opens the picker; picking a tool or
-  // colour, tapping the page, or drawing with it collapses it again.
-  function openPanel(v) {
-    panel.classList.toggle('open', v);
-    const h = actions.querySelector('.handle');
-    h.setAttribute('aria-expanded', v ? 'true' : 'false');
+  // Each opener in the strip pops its own palette out beside it; picking something,
+  // tapping the page, or drawing closes it again. Only one palette is open at a time.
+  const openers = [...pickers.querySelectorAll('.opener')];
+
+  function closePops() { openPop(null); }
+
+  function openPop(el) {
+    for (const p of pops) p.classList.toggle('open', p === el);
+    for (const o of openers) o.setAttribute('aria-expanded', o.dataset.open === (el && el.id) ? 'true' : 'false');
+    if (el) placePop(el);
   }
 
-  panel.addEventListener('pointerdown', (e) => {
+  // Centre the palette on its opener, but keep it on screen.
+  function placePop(el) {
+    const o = pickers.querySelector(`[data-open="${el.id}"]`).getBoundingClientRect();
+    const h = el.offsetHeight;
+    const top = Math.max(8, Math.min(innerHeight - h - 8, o.top + o.height / 2 - h / 2));
+    el.style.setProperty('--top', top + 'px');
+  }
+
+  // The actions pill sits just under the openers pill, whatever their size.
+  function placeActions() {
+    const r = pickers.getBoundingClientRect();
+    actions.style.setProperty('--actions-top', (r.bottom + 12) + 'px');
+  }
+
+  pickers.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    const b = e.target.closest('.btn');
+    const b = e.target.closest('.opener');
     if (!b) return;
-    if (b.dataset.tool) {
-      selectTool(b.dataset.tool);
-      openPanel(false);
-    }
-    else if (b.dataset.mul) { markWidth(+b.dataset.mul); }
+    const el = document.getElementById(b.dataset.open);
+    openPop(el.classList.contains('open') ? null : el);
+  });
+  toolsEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const b = e.target.closest('[data-tool]');
+    if (b) { selectTool(b.dataset.tool); closePops(); }
   });
   widthsEl.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
-    if (b && b.dataset.mul) markWidth(+b.dataset.mul);
+    if (b && b.dataset.mul) { markWidth(+b.dataset.mul); closePops(); }
   });
   palette.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
-    if (b && b.dataset.color) { selectColor(b.dataset.color); openPanel(false); }
+    if (b && b.dataset.color) { selectColor(b.dataset.color); closePops(); }
   });
   actions.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
     if (!b) return;
-    if (b.dataset.action === 'toggle') openPanel(!panel.classList.contains('open'));
-    else if (b.dataset.action === 'undo') { if (undo()) bump(b); }
+    closePops();
+    if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });
 
@@ -835,7 +865,8 @@
   paintSwatches();
   darkMode.addEventListener('change', paintSwatches);
   fit();
-  new ResizeObserver(fit).observe(board);
+  placeActions();
+  new ResizeObserver(() => { fit(); placeActions(); }).observe(board);
   measureStrip();
   window.addEventListener('resize', measureStrip);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
