@@ -28,7 +28,7 @@
   // Size steps, small to big: line width for drawing tools, eraser size, letter size.
   const WIDTHS = [.55, .8, 1, 1.6, 2.4];
 
-  const FONT = '"Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif';
+  const FONT = getComputedStyle(document.documentElement).getPropertyValue('--kid-font').trim();
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
   // Strokes kept as vectors so they can be undone; older ones are baked into `base`.
@@ -48,7 +48,6 @@
   let tool = 'crayon';
   let lastDrawTool = 'crayon';
   let color = COLORS[0][1];
-  let lastColor = color;
   let widthMul = 1;
   let ops = [];              // strokes, letters and clears since `base`
   let cur = null;            // where the next letter goes: { x, y, size, lineX }
@@ -170,7 +169,7 @@
 
   function width(stroke, p) {
     // each stroke keeps the size it was drawn with, so undo redraws it the same
-    const w = SIZE[stroke.tool] * (stroke.mul || 1);
+    const w = SIZE[stroke.tool] * stroke.mul;
     if (!stroke.pen || stroke.tool === 'eraser') return w;
     return w * (0.35 + 1.3 * p);   // Apple Pencil / stylus pressure
   }
@@ -311,8 +310,7 @@
     if (tool === 'abc') {
       // Tap the page to choose where the letters go.
       const p = point(e);
-      const size = letterSize();
-      cur = { x: p.x, y: p.y - size / 2, size, lineX: p.x };
+      cur = newCursor(p.x, p.y - letterSize() / 2);
       showCaret();
       return;
     }
@@ -371,11 +369,12 @@
     return Math.round(Math.max(36, Math.min(110, s)) * widthMul);
   }
 
+  function newCursor(x, y) {
+    return { x, y, size: letterSize(), lineX: x };
+  }
+
   function ensureCursor() {
-    if (!cur) {
-      const size = letterSize();
-      cur = { x: 24, y: 20, size, lineX: 24 };
-    }
+    if (!cur) cur = newCursor(24, 20);
   }
 
   function showCaret() {
@@ -586,11 +585,8 @@
   }
 
   function markColor(hex) {
-    if (hex !== color) lastColor = color;
     color = hex;
     document.documentElement.style.setProperty('--ink', hex);
-    document.documentElement.style.setProperty('--c', hex);
-    document.documentElement.style.setProperty('--c-last', lastColor);
     for (const b of swatches) b.classList.toggle('on', b.dataset.color === hex);
   }
 
@@ -702,21 +698,17 @@
     const el = document.getElementById(b.dataset.open);
     openPop(el.classList.contains('open') ? null : el);
   });
-  toolsEl.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    const b = e.target.closest('[data-tool]');
-    if (b) { selectTool(b.dataset.tool); closePops(); }
-  });
-  widthsEl.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    const b = e.target.closest('.btn');
-    if (b && b.dataset.mul) { markWidth(+b.dataset.mul); closePops(); }
-  });
-  palette.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    const b = e.target.closest('.btn');
-    if (b && b.dataset.color) { selectColor(b.dataset.color); closePops(); }
-  });
+  // Picking from a palette applies the choice and closes it.
+  function onPick(el, attr, pick) {
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const b = e.target.closest(`[data-${attr}]`);
+      if (b) { pick(b.dataset[attr]); closePops(); }
+    });
+  }
+  onPick(toolsEl, 'tool', selectTool);
+  onPick(widthsEl, 'mul', (m) => markWidth(+m));
+  onPick(palette, 'color', selectColor);
   actions.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
@@ -755,7 +747,6 @@
   // Invisible to a normal user: no button, no UI until activated.
 
   let dev = false;
-  let devFPS = 0;
   let devFrames = 0;
   let devStrokes = 0;
   const hud = document.createElement('pre');
@@ -771,7 +762,7 @@
 
   setInterval(() => {
     if (!dev) return;
-    devFPS = devFrames;
+    const fps = devFrames;
     devFrames = 0;
     const mem = performance.memory ?
       Math.round(performance.memory.usedJSHeapSize / 1048576) + '/' +
@@ -779,7 +770,7 @@
     hud.textContent =
       `build      ${build.branch} @ ${build.commit}\n` +
       `built      ${build.time}${build.preview ? ' (preview)' : ''}\n` +
-      `fps        ${devFPS}\n` +
+      `fps        ${fps}\n` +
       `tool       ${tool}${tool === 'eraser' ? ' (last draw: ' + lastDrawTool + ')' : ''}\n` +
       `color      ${color}\n` +
       `ops        ${ops.length} (undo cap ${MAX_UNDO}, baked base ${baseBlank ? 'blank' : 'set'})\n` +
@@ -803,7 +794,6 @@
   function setDev(on) {
     dev = on;
     hud.hidden = !on;
-    document.documentElement.classList.toggle('dev', on);
     try { localStorage.setItem('draw-dev', on ? '1' : '0'); } catch (_) {}
     if (on) { devFrames = 0; requestAnimationFrame(devTick); }
   }
@@ -851,34 +841,21 @@
   // Pinch-zoom on a Mac trackpad arrives as ctrl+wheel.
   document.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
 
-  // ---------- iOS home-screen app ----------
-
-  // iOS can give the home-screen app a window shorter than the screen, leaving a strip
-  // at the bottom where the home indicator sits. Tell the CSS so the toolbar doesn't
-  // leave room for the home indicator a second time.
-  function measureStrip() {
-    if (!navigator.standalone) return;
-    const long = Math.max(screen.width, screen.height), short = Math.min(screen.width, screen.height);
-    const full = innerWidth > innerHeight ? short : long;
-    document.documentElement.style.setProperty('--strip', Math.max(0, full - innerHeight) + 'px');
-  }
+  // ---------- start ----------
 
   setCase(true);
   selectTool('crayon');
   markWidth(1);
-  markColor(COLORS[0][1]);
   paintSwatches();
   darkMode.addEventListener('change', paintSwatches);
   fit();
   placeActions();
   new ResizeObserver(() => { fit(); placeActions(); }).observe(board);
-  measureStrip();
-  window.addEventListener('resize', measureStrip);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
   window.addEventListener('pageshow', wake);
   // iOS threw the canvas away and gave back a blank one: draw everything again.
   paper.addEventListener('contextrestored', () => { stopLive(); redraw(); });
-  window.addEventListener('orientationchange', () => setTimeout(() => { measureStrip(); fit(); }, 300));
+  window.addEventListener('orientationchange', () => setTimeout(fit, 300));
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     // When an update takes over, reload to show it, unless something is already drawn.
