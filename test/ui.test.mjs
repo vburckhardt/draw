@@ -52,6 +52,27 @@ for (const dark of [true, false]) {
   const swatchCount = await page.locator('#palette .swatch').count();
   ok(swatchCount === 14, '14 swatches in the palette');
 
+  // --- three separate palettes: tools, widths, colours as distinct groups
+  const groups = await page.evaluate(() => {
+    const box = (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bg: getComputedStyle(el).backgroundColor }; };
+    const ids = ['tools-row', 'widths', 'palette'];
+    const els = ids.map((id) => document.getElementById(id));
+    const boxes = els.map(box);
+    const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    return {
+      count: document.querySelectorAll('#panel .group').length,
+      ids,
+      boxes,
+      anyOverlap: overlaps(boxes[0], boxes[1]) || overlaps(boxes[1], boxes[2]) || overlaps(boxes[0], boxes[2]),
+      ordered: boxes[0].y + boxes[0].h <= boxes[1].y && boxes[1].y + boxes[1].h <= boxes[2].y,
+      visibleBg: boxes.every((b) => b.w > 0 && b.h > 0 && b.bg !== 'rgba(0, 0, 0, 0)'),
+    };
+  });
+  ok(groups.count === 3, 'three palette groups in the panel (tools, widths, colours)');
+  ok(!groups.anyOverlap, 'palette groups do not overlap each other');
+  ok(groups.ordered, 'palette groups stack in order: tools, widths, colours');
+  ok(groups.visibleBg, 'each palette group has its own visible background');
+
   // --- pick a colour: panel closes, badge updates
   await page.locator('#palette .swatch').nth(5).tap();
   await page.waitForTimeout(350);
