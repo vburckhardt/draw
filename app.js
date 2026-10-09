@@ -25,7 +25,8 @@
 
   // Line widths in CSS pixels.
   const SIZE = { crayon: 18, pencil: 4, marker: 13, eraser: 40 };
-  const WIDTHS = [.55, .8, 1, 1.6, 2.4];   // stroke-width dots, thin to thick
+  // Size steps, small to big: line width for drawing tools, eraser size, letter size.
+  const WIDTHS = [.55, .8, 1, 1.6, 2.4];
 
   const FONT = '"Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif';
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -168,7 +169,8 @@
   }
 
   function width(stroke, p) {
-    const w = SIZE[stroke.tool] * (stroke.tool === 'eraser' ? 1 : widthMul);
+    // each stroke keeps the size it was drawn with, so undo redraws it the same
+    const w = SIZE[stroke.tool] * (stroke.mul || 1);
     if (!stroke.pen || stroke.tool === 'eraser') return w;
     return w * (0.35 + 1.3 * p);   // Apple Pencil / stylus pressure
   }
@@ -323,6 +325,7 @@
       type: 'stroke',
       tool,
       color,
+      mul: widthMul,
       pen: e.pointerType === 'pen',
       seed: (Math.random() * 2 ** 32) >>> 0,
       pts: [point(e)],
@@ -365,7 +368,7 @@
 
   function letterSize() {
     const s = Math.min(board.clientWidth, board.clientHeight) / 7.5;
-    return Math.round(Math.max(36, Math.min(110, s)));
+    return Math.round(Math.max(36, Math.min(110, s)) * widthMul);
   }
 
   function ensureCursor() {
@@ -534,13 +537,19 @@
     // If the selected colour just left the palette, switch to its replacement.
     markColor(color === hidden ? TEAL[1] : color);
   }
+  // preview sizes for size step i: stroke thickness, and letter size for ABC
+  function sizeVars(el, i) {
+    el.style.setProperty('--dot', (6 + i * 5) + 'px');
+    el.style.setProperty('--a', (12 + i * 5) + 'px');
+  }
+
   const widthDots = WIDTHS.map((m, i) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn';
     b.dataset.mul = m;
-    b.style.setProperty('--dot', (6 + i * 5) + 'px');
-    b.setAttribute('aria-label', (i + 1) + ' of ' + WIDTHS.length + ' line width');
+    sizeVars(b, i);
+    b.setAttribute('aria-label', 'Size ' + (i + 1) + ' of ' + WIDTHS.length);
     widthsEl.appendChild(b);
     return b;
   });
@@ -548,8 +557,13 @@
   function markWidth(m) {
     widthMul = m;
     for (const b of widthDots) b.classList.toggle('on', +b.dataset.mul === m);
-    // the opener's dot is as thick as the chosen line
-    widthNow.style.setProperty('--dot', (6 + WIDTHS.indexOf(m) * 5) + 'px');
+    // the opener previews the chosen size
+    sizeVars(widthNow, WIDTHS.indexOf(m));
+    // with letters on, the next letters come out at the new size
+    if (cur) {
+      cur.size = letterSize();
+      showCaret();
+    }
   }
 
   const tools = [...toolsEl.querySelectorAll('[data-tool]')];
@@ -563,6 +577,9 @@
     toolNow.innerHTML = active.innerHTML;
     toolNow.dataset.tool = t;
     toolNow.setAttribute('aria-label', 'Tools: ' + active.getAttribute('aria-label'));
+    // the size button means line width, eraser size or letter size; CSS previews it
+    document.documentElement.dataset.tool = t;
+    widthNow.setAttribute('aria-label', t === 'abc' ? 'Letter size' : t === 'eraser' ? 'Eraser size' : 'Line width');
     keys.hidden = t !== 'abc';
     board.classList.toggle('typing', t === 'abc');
     showCaret();

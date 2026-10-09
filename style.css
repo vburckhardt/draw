@@ -260,6 +260,25 @@ body {
 
 #widths .btn.on { box-shadow: 0 0 0 2px var(--ring); }
 
+/* The size button works for every tool: the eraser previews in a neutral grey,
+   letters preview as an "A" at each size. */
+[data-tool="eraser"] #width-now i { background: var(--fg); }
+[data-tool="eraser"] #widths .btn { color: var(--fg); }
+
+[data-tool="abc"] #width-now i,
+[data-tool="abc"] #widths .btn::before {
+  width: auto;
+  height: auto;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  border-radius: 0;
+  color: var(--ink);
+  font: 700 var(--a)/1 var(--kid-font);
+}
+[data-tool="abc"] #width-now i::before,
+[data-tool="abc"] #widths .btn::before { content: "A"; }
+
 /* colour grid: two rows of seven */
 .pop#palette {
   display: none;

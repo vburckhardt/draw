@@ -119,6 +119,20 @@ for (const dark of [true, false]) {
   ok(await page.locator('#tool-now').getAttribute('data-tool') === 'abc', 'tool opener shows ABC');
   const keys = await box('#keys');
   ok(keys && keys.y + keys.height <= phone.height + 2, 'keyboard fully on screen at the bottom');
+
+  // --- the size button works with letters too: it previews an "A" and sets letter size
+  const glyph = await page.evaluate(() => getComputedStyle(document.querySelector('#width-now i'), '::before').content);
+  ok(glyph === '"A"', 'size opener previews a letter while ABC is on');
+  ok(await page.locator('#width-now').getAttribute('aria-label') === 'Letter size', 'size opener is labelled letter size');
+  await page.mouse.click(60, 300);   // place the cursor
+  await page.waitForTimeout(100);
+  const caretBefore = (await box('#caret')).height;
+  await page.locator('[data-open="widths"]').tap();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(root, `shot-${mode}-letter-sizes.png`) });
+  await page.locator('#widths .btn').nth(0).tap();
+  await page.waitForTimeout(200);
+  ok((await box('#caret')).height < caretBefore, 'smallest size makes the letters smaller');
   await page.screenshot({ path: path.join(root, `shot-${mode}-abc.png`) });
 
   ok(errors.length === 0, 'no JS errors (' + (errors[0] || 'none') + ')');
