@@ -1,6 +1,6 @@
 // Online: fetch the whole app as one unit (so HTML/CSS/JS always match), keep a copy.
 // Offline: use the saved copy. Files are only swapped together, never mixed.
-const CACHE = "draw-v11";
+const CACHE = "draw-v12";
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',

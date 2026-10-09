@@ -58,6 +58,8 @@ for (const dark of [true, false]) {
   ok(!(await page.locator('#panel').isVisible()), 'picker collapses after colour pick');
   const c = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--c').trim());
   ok(c === '#35b6f0', 'badge colour matches the picked swatch');
+  const badgeDots = await page.locator('#badge i').count();
+  ok(badgeDots === 1, 'exactly one colour dot in the badge');
 
   // --- draw a stroke: busy fade applies
   await page.mouse.move(100, 400);

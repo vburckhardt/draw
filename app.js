@@ -513,7 +513,7 @@
   const actions = document.getElementById('actions');
   const widthsEl = document.getElementById('widths');
   const badge = document.getElementById('badge');
-  badge.innerHTML = '<i class="split"></i><i class="now"></i>';
+  badge.innerHTML = '<i class="now"></i>';
   const swatches = COLORS.map(() => {
     const b = document.createElement('button');
     b.type = 'button';
