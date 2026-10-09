@@ -25,7 +25,8 @@
 
   // Line widths in CSS pixels.
   const SIZE = { crayon: 18, pencil: 4, marker: 13, eraser: 40 };
-  const WIDTHS = [.55, .8, 1, 1.6, 2.4];   // stroke-width dots, thin to thick
+  // Size steps, small to big: line width for drawing tools, eraser size, letter size.
+  const WIDTHS = [.55, .8, 1, 1.6, 2.4];
 
   const FONT = '"Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif';
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -35,7 +36,6 @@
 
   const board = document.getElementById('board');
   const paper = document.getElementById('paper');
-  const panel = document.getElementById('panel');
   const keys = document.getElementById('keys');
   const caret = document.getElementById('caret');
   const ctx = paper.getContext('2d');
@@ -169,7 +169,8 @@
   }
 
   function width(stroke, p) {
-    const w = SIZE[stroke.tool] * (stroke.tool === 'eraser' ? 1 : widthMul);
+    // each stroke keeps the size it was drawn with, so undo redraws it the same
+    const w = SIZE[stroke.tool] * (stroke.mul || 1);
     if (!stroke.pen || stroke.tool === 'eraser') return w;
     return w * (0.35 + 1.3 * p);   // Apple Pencil / stylus pressure
   }
@@ -306,7 +307,7 @@
   paper.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
-    openPanel(false);
+    closePops();
     if (tool === 'abc') {
       // Tap the page to choose where the letters go.
       const p = point(e);
@@ -324,6 +325,7 @@
       type: 'stroke',
       tool,
       color,
+      mul: widthMul,
       pen: e.pointerType === 'pen',
       seed: (Math.random() * 2 ** 32) >>> 0,
       pts: [point(e)],
@@ -333,7 +335,6 @@
     ops.push(stroke);
     devStrokes++;
     live.set(e.pointerId, { stroke, state });
-    setBusy(true);
     drawPoint(ctx, stroke, state);
   });
 
@@ -358,7 +359,6 @@
     l.stroke.done = true;
     drawTail(ctx, l.stroke);
     trim();
-    setBusy(false);
   }
   paper.addEventListener('pointerup', end);
   paper.addEventListener('pointercancel', end);
@@ -368,7 +368,7 @@
 
   function letterSize() {
     const s = Math.min(board.clientWidth, board.clientHeight) / 7.5;
-    return Math.round(Math.max(36, Math.min(110, s)));
+    return Math.round(Math.max(36, Math.min(110, s)) * widthMul);
   }
 
   function ensureCursor() {
@@ -510,10 +510,13 @@
   // ---------- toolbar ----------
 
   const palette = document.getElementById('palette');
+  const pickers = document.getElementById('pickers');
   const actions = document.getElementById('actions');
   const widthsEl = document.getElementById('widths');
-  const badge = document.getElementById('badge');
-  badge.innerHTML = '<i class="now"></i>';
+  const toolsEl = document.getElementById('tools');
+  const toolNow = document.getElementById('tool-now');
+  const widthNow = document.getElementById('width-now');
+  const pops = [toolsEl, widthsEl, palette];
   const swatches = COLORS.map(() => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -534,12 +537,19 @@
     // If the selected colour just left the palette, switch to its replacement.
     markColor(color === hidden ? TEAL[1] : color);
   }
+  // preview sizes for size step i: stroke thickness, and letter size for ABC
+  function sizeVars(el, i) {
+    el.style.setProperty('--dot', (6 + i * 5) + 'px');
+    el.style.setProperty('--a', (12 + i * 5) + 'px');
+  }
+
   const widthDots = WIDTHS.map((m, i) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn';
-    b.style.setProperty('--dot', (6 + i * 5) + 'px');
-    b.setAttribute('aria-label', (i + 1) + ' of ' + WIDTHS.length + ' line width');
+    b.dataset.mul = m;
+    sizeVars(b, i);
+    b.setAttribute('aria-label', 'Size ' + (i + 1) + ' of ' + WIDTHS.length);
     widthsEl.appendChild(b);
     return b;
   });
@@ -547,14 +557,29 @@
   function markWidth(m) {
     widthMul = m;
     for (const b of widthDots) b.classList.toggle('on', +b.dataset.mul === m);
+    // the opener previews the chosen size
+    sizeVars(widthNow, WIDTHS.indexOf(m));
+    // with letters on, the next letters come out at the new size
+    if (cur) {
+      cur.size = letterSize();
+      showCaret();
+    }
   }
 
-  const tools = [...panel.querySelectorAll('[data-tool]')];
+  const tools = [...toolsEl.querySelectorAll('[data-tool]')];
 
   function selectTool(t) {
     tool = t;
     if (t !== 'eraser' && t !== 'abc') lastDrawTool = t;
     for (const b of tools) b.classList.toggle('on', b.dataset.tool === t);
+    // the tool opener shows the active tool
+    const active = tools.find((b) => b.dataset.tool === t);
+    toolNow.innerHTML = active.innerHTML;
+    toolNow.dataset.tool = t;
+    toolNow.setAttribute('aria-label', 'Tools: ' + active.getAttribute('aria-label'));
+    // the size button means line width, eraser size or letter size; CSS previews it
+    document.documentElement.dataset.tool = t;
+    widthNow.setAttribute('aria-label', t === 'abc' ? 'Letter size' : t === 'eraser' ? 'Eraser size' : 'Line width');
     keys.hidden = t !== 'abc';
     board.classList.toggle('typing', t === 'abc');
     showCaret();
@@ -644,52 +669,62 @@
   }
 
   // pointerdown (not click) so taps feel instant and work with several fingers.
-  // Expanded <-> collapsed: the pencil handle opens the picker; picking a tool or
-  // colour, tapping the page, or drawing with it collapses it again.
-  function openPanel(v) {
-    panel.classList.toggle('open', v);
-    const h = actions.querySelector('.handle');
-    h.setAttribute('aria-expanded', v ? 'true' : 'false');
+  // Each opener in the strip pops its own palette out beside it; picking something,
+  // tapping the page, or drawing closes it again. Only one palette is open at a time.
+  const openers = [...pickers.querySelectorAll('.opener')];
+
+  function closePops() { openPop(null); }
+
+  function openPop(el) {
+    for (const p of pops) p.classList.toggle('open', p === el);
+    for (const o of openers) o.setAttribute('aria-expanded', o.dataset.open === (el && el.id) ? 'true' : 'false');
+    if (el) placePop(el);
   }
 
-  panel.addEventListener('pointerdown', (e) => {
+  // Centre the palette on its opener, but keep it on screen.
+  function placePop(el) {
+    const o = pickers.querySelector(`[data-open="${el.id}"]`).getBoundingClientRect();
+    const h = el.offsetHeight;
+    const top = Math.max(8, Math.min(innerHeight - h - 8, o.top + o.height / 2 - h / 2));
+    el.style.setProperty('--top', top + 'px');
+  }
+
+  // The actions pill sits just under the openers pill, whatever their size.
+  function placeActions() {
+    const r = pickers.getBoundingClientRect();
+    actions.style.setProperty('--actions-top', (r.bottom + 12) + 'px');
+  }
+
+  pickers.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    const b = e.target.closest('.btn');
+    const b = e.target.closest('.opener');
     if (!b) return;
-    if (b.dataset.tool) {
-      selectTool(b.dataset.tool);
-      openPanel(false);
-    }
-    else if (b.dataset.mul) { markWidth(+b.dataset.mul); }
+    const el = document.getElementById(b.dataset.open);
+    openPop(el.classList.contains('open') ? null : el);
+  });
+  toolsEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const b = e.target.closest('[data-tool]');
+    if (b) { selectTool(b.dataset.tool); closePops(); }
   });
   widthsEl.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
-    if (b && b.dataset.mul) markWidth(+b.dataset.mul);
+    if (b && b.dataset.mul) { markWidth(+b.dataset.mul); closePops(); }
   });
   palette.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
-    if (b && b.dataset.color) { selectColor(b.dataset.color); openPanel(false); }
+    if (b && b.dataset.color) { selectColor(b.dataset.color); closePops(); }
   });
   actions.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');
     if (!b) return;
-    if (b.dataset.action === 'toggle') openPanel(!panel.classList.contains('open'));
-    else if (b.dataset.action === 'undo') { if (undo()) bump(b); }
+    closePops();
+    if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });
-
-  // While a finger or pen is drawing, the floating controls step back, and the
-  // colour and tool pills collapse to their active chip. Lifting the pen (or a
-  // pointer hovering near them) expands them again.
-  let busyTimer = 0;
-  function setBusy(on) {
-    clearTimeout(busyTimer);
-    if (on) document.body.classList.add('busy');
-    else busyTimer = setTimeout(() => document.body.classList.remove('busy'), 900);
-  }
 
   // Keyboard on a Mac: Cmd/Ctrl+Z undoes; typing letters switches to the ABC tool.
   window.addEventListener('keydown', (e) => {
@@ -835,7 +870,8 @@
   paintSwatches();
   darkMode.addEventListener('change', paintSwatches);
   fit();
-  new ResizeObserver(fit).observe(board);
+  placeActions();
+  new ResizeObserver(() => { fit(); placeActions(); }).observe(board);
   measureStrip();
   window.addEventListener('resize', measureStrip);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });

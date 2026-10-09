@@ -22,56 +22,82 @@ for (const dark of [true, false]) {
   await page.goto(page_);
   await page.waitForTimeout(300);
 
-  // --- collapsed state on load
-  const strip = await page.locator('#actions').boundingBox();
-  ok(strip && strip.x + strip.width > phone.width * 0.8, `${dark ? 'dark' : 'light'}: strip docked to right edge`);
-  ok(strip && strip.y < 80, 'strip at top');
-  const panelHidden = await page.locator('#panel').isVisible().then(v => !v);
-  ok(panelHidden, 'picker hidden on load');
+  const mode = dark ? 'dark' : 'light';
+  const box = (sel) => page.locator(sel).boundingBox();
+  const shown = async (sel) => page.locator(sel).isVisible();
+  const openNow = () => page.evaluate(() => [...document.querySelectorAll('.pop.open')].map((p) => p.id));
 
-  // nothing else visible: panel, keys
-  ok(!(await page.locator('#keys').isVisible()), 'letter keyboard hidden');
+  // --- collapsed state on load: openers strip and a separate actions pill
+  const strip = await box('#pickers');
+  ok(strip && strip.x + strip.width > phone.width * 0.8, `${mode}: openers strip docked to right edge`);
+  ok(strip && strip.y < 80, 'openers strip at top');
+  const acts = await box('#actions');
+  ok(acts && acts.x + acts.width > phone.width * 0.8, 'actions pill docked to right edge');
+  ok(acts && acts.y >= strip.y + strip.height + 4 && acts.y <= strip.y + strip.height + 24,
+    'actions pill sits just below the openers, separate from them');
+  ok((await openNow()).length === 0, 'no palette open on load');
+  ok(!(await shown('#keys')), 'letter keyboard hidden');
 
-  // --- open the picker
-  await page.locator('.handle').tap();
-  await page.waitForTimeout(350);
-  const panel = await page.locator('#panel').boundingBox();
-  ok(!!panel, 'picker opens on handle tap');
-  if (panel) {
-    ok(panel.y < 100 && panel.y + panel.height < phone.height, 'picker docked top-right, on screen');
-    ok(panel.x + panel.width <= strip.x + 4, 'picker does not overlap the strip');
-    ok(panel.x > 20, 'picker not at center-left');
-    ok(panel.y + panel.height < phone.height * 0.5, 'picker stays in the top half of the screen');
-    const gap = strip.x - (panel.x + panel.width);
-    ok(gap >= 4 && gap <= 24, 'picker sits beside the strip with a small gap');
+  // --- three palettes, each from its own opener, one at a time
+  const palettes = [['tools', 5, '.tool'], ['widths', 5, '.btn'], ['palette', 14, '.swatch']];
+  for (const [id, n, item] of palettes) {
+    await page.locator(`[data-open="${id}"]`).tap();
+    await page.waitForTimeout(350);
+    ok(JSON.stringify(await openNow()) === JSON.stringify([id]), `${id}: only its palette opens`);
+    ok(await page.locator(`#${id} ${item}`).count() === n, `${id}: ${n} items`);
+    const pop = await box(`#${id}`);
+    const opener = await box(`[data-open="${id}"]`);
+    ok(pop.x >= 8 && pop.y >= 0 && pop.y + pop.height <= phone.height, `${id}: fully on screen`);
+    const gap = strip.x - (pop.x + pop.width);
+    ok(gap >= 4 && gap <= 24, `${id}: beside the strip with a small gap`);
+    const mid = opener.y + opener.height / 2;
+    ok(pop.y <= mid && pop.y + pop.height >= mid, `${id}: level with its opener`);
+    await page.screenshot({ path: path.join(root, `shot-${mode}-${id}.png`) });
   }
+  // tapping the open palette's opener again closes it
+  await page.locator('[data-open="palette"]').tap();
+  await page.waitForTimeout(200);
+  ok((await openNow()).length === 0, 'tapping the opener again closes its palette');
 
-  // widths and swatches inside the panel only
-  const widthsInPanel = await page.locator('#panel #widths').count();
-  ok(widthsInPanel === 1, 'width dots inside the panel');
-  const swatchCount = await page.locator('#palette .swatch').count();
-  ok(swatchCount === 14, '14 swatches in the palette');
-
-  // --- pick a colour: panel closes, badge updates
+  // --- pick a colour: palette closes, colour opener updates
+  await page.locator('[data-open="palette"]').tap();
+  await page.waitForTimeout(300);
   await page.locator('#palette .swatch').nth(5).tap();
   await page.waitForTimeout(350);
-  ok(!(await page.locator('#panel').isVisible()), 'picker collapses after colour pick');
+  ok((await openNow()).length === 0, 'palette closes after colour pick');
   const c = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--c').trim());
-  ok(c === '#35b6f0', 'badge colour matches the picked swatch');
-  const badgeDots = await page.locator('#badge i').count();
-  ok(badgeDots === 1, 'exactly one colour dot in the badge');
+  ok(c === '#35b6f0', 'colour opener matches the picked swatch');
+  ok(await page.locator('#badge i').count() === 1, 'exactly one colour dot in the colour opener');
 
-  // --- draw a stroke: busy fade applies
+  // --- pick a width: it takes effect and the opener dot grows
+  const dotBefore = (await page.locator('#width-now i').evaluate((e) => e.offsetHeight));
+  await page.locator('[data-open="widths"]').tap();
+  await page.waitForTimeout(300);
+  await page.locator('#widths .btn').nth(4).tap();
+  await page.waitForTimeout(300);
+  ok((await openNow()).length === 0, 'widths close after picking one');
+  ok(await page.locator('#widths .btn.on').count() === 1 && await page.locator('#widths .btn').nth(4).evaluate((b) => b.classList.contains('on')),
+    'picked width is marked');
+  ok((await page.locator('#width-now i').evaluate((e) => e.offsetHeight)) > dotBefore, 'width opener stroke thickens with the line');
+
+  // --- tool opener shows the active tool
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'crayon', 'tool opener shows crayon at start');
+  await page.locator('[data-open="tools"]').tap();
+  await page.waitForTimeout(300);
+  await page.locator('[data-tool="marker"]').tap();
+  await page.waitForTimeout(300);
+  ok((await openNow()).length === 0, 'tools close after picking one');
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'marker', 'tool opener shows the marker after picking it');
+  ok(await page.locator('#tool-now svg').count() === 1, 'tool opener has the tool icon');
+
+  // --- draw a stroke: the toolbar stays fully visible (no fade while drawing)
   await page.mouse.move(100, 400);
   await page.mouse.down();
   await page.mouse.move(200, 500, { steps: 5 });
+  await page.waitForTimeout(400);
+  const opacity = await page.evaluate(() => ['pickers', 'actions'].map((id) => getComputedStyle(document.getElementById(id)).opacity));
   await page.mouse.up();
-  await page.waitForTimeout(150);
-  const busy = await page.evaluate(() => document.body.classList.contains('busy'));
-  ok(busy, 'busy class set while drawing');
-  await page.waitForTimeout(1200);
-  const notBusy = await page.evaluate(() => !document.body.classList.contains('busy'));
-  ok(notBusy, 'busy clears after lifting');
+  ok(opacity.every((o) => o === '1'), 'toolbar stays fully visible while drawing');
 
   // --- undo removes the stroke
   await page.locator('[data-action="undo"]').tap();
@@ -85,19 +111,29 @@ for (const dark of [true, false]) {
   ok(blank, 'undo restores a blank page');
 
   // --- letters keyboard opens with the ABC tool
-  await page.locator('.handle').tap();
+  await page.locator('[data-open="tools"]').tap();
   await page.waitForTimeout(300);
   await page.locator('[data-tool="abc"]').tap();
   await page.waitForTimeout(300);
-  ok(await page.locator('#keys').isVisible(), 'letter keyboard appears for ABC tool');
-  const keys = await page.locator('#keys').boundingBox();
+  ok(await shown('#keys'), 'letter keyboard appears for ABC tool');
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'abc', 'tool opener shows ABC');
+  const keys = await box('#keys');
   ok(keys && keys.y + keys.height <= phone.height + 2, 'keyboard fully on screen at the bottom');
 
-  // screenshot both states for manual review
-  await page.screenshot({ path: path.join(root, `shot-${dark ? 'dark' : 'light'}-abc.png`) });
-  await page.locator('.handle').tap();
+  // --- the size button works with letters too: it previews an "A" and sets letter size
+  const glyph = await page.evaluate(() => getComputedStyle(document.querySelector('#width-now i'), '::before').content);
+  ok(glyph === '"A"', 'size opener previews a letter while ABC is on');
+  ok(await page.locator('#width-now').getAttribute('aria-label') === 'Letter size', 'size opener is labelled letter size');
+  await page.mouse.click(60, 300);   // place the cursor
+  await page.waitForTimeout(100);
+  const caretBefore = (await box('#caret')).height;
+  await page.locator('[data-open="widths"]').tap();
   await page.waitForTimeout(300);
-  await page.screenshot({ path: path.join(root, `shot-${dark ? 'dark' : 'light'}-open.png`) });
+  await page.screenshot({ path: path.join(root, `shot-${mode}-letter-sizes.png`) });
+  await page.locator('#widths .btn').nth(0).tap();
+  await page.waitForTimeout(200);
+  ok((await box('#caret')).height < caretBefore, 'smallest size makes the letters smaller');
+  await page.screenshot({ path: path.join(root, `shot-${mode}-abc.png`) });
 
   ok(errors.length === 0, 'no JS errors (' + (errors[0] || 'none') + ')');
   await ctx.close();

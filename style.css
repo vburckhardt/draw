@@ -170,11 +170,12 @@ body {
 
 /* ---------- toolbar ---------- */
 
-/* ---------- ink toolbar: expanded picker + persistent edge strip ----------
-   Collapsed: a thin right-edge strip (pencil handle, colour badge, undo, bin).
-   Expanded: a floating panel with tools, 5 width dots and the colour grid. */
+/* ---------- ink toolbar: openers strip, actions pill, three palettes ----------
+   Right edge, top: a pill with three openers (tool, line width, colour), each
+   showing what is active now; below it, a pill with undo and the bin. Tapping an
+   opener pops its own palette out beside it; only one is open at a time. */
 
-#panel, #actions {
+#pickers, #actions, .pop {
   position: fixed;
   z-index: 10;
   background: var(--veil);
@@ -183,39 +184,10 @@ body {
   border: 1px solid var(--edge);
   box-shadow: 0 4px 16px rgba(0, 0, 0, .16);
   color: var(--fg);
-  transition: opacity .25s ease;
 }
 
-/* While drawing, the chrome steps back. */
-body.busy #panel, body.busy #actions { opacity: .28; }
-
-/* The picker hangs just under the right-edge strip, docked to the corner,
-   never floating over the middle of the drawing. */
-#panel {
-  right: calc(var(--t) * 1.5 + 16px + max(8px, env(safe-area-inset-right)));
-  top: calc(10px + max(10px, env(safe-area-inset-top)));
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(var(--t) * .18);
-  padding: calc(var(--t) * .22);
-  border-radius: calc(var(--t) * .55);
-  max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  overflow-y: auto;
-}
-#panel > .tool { display: inline-grid; }
-#tools-row { display: flex; gap: calc(var(--t) * .18); }
-
-#panel.open { display: flex; animation: pop .22s cubic-bezier(.3, 1.4, .6, 1); }
-
-@keyframes pop {
-  from { transform: scale(.85); opacity: 0; transform-origin: top right; }
-  to { transform: scale(1); opacity: 1; transform-origin: top right; }
-}
-
-#actions {
+#pickers, #actions {
   right: calc(8px + max(8px, env(safe-area-inset-right)));
-  top: calc(10px + max(10px, env(safe-area-inset-top)));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -224,48 +196,98 @@ body.busy #panel, body.busy #actions { opacity: .28; }
   border-radius: 999px;
 }
 
-/* line-width dots: dot diameter encodes the stroke width */
-#widths {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--t) * .25);
-  padding: calc(var(--t) * .1) 0;
+#pickers { top: calc(10px + max(10px, env(safe-area-inset-top))); }
+
+/* app.js puts the actions pill just under the openers pill */
+#actions { top: var(--actions-top, calc(10px + max(10px, env(safe-area-inset-top)) + var(--t) * 3.9)); }
+
+/* A palette hangs beside the strip, centred on its opener (app.js sets --top). */
+.pop {
+  right: calc(var(--t) * 1.5 + 16px + max(8px, env(safe-area-inset-right)));
+  top: var(--top, calc(10px + max(10px, env(safe-area-inset-top))));
+  display: none;
+  gap: calc(var(--t) * .18);
+  padding: calc(var(--t) * .22);
+  border-radius: calc(var(--t) * .5);
 }
 
+.pop.open { display: flex; animation: pop .22s cubic-bezier(.3, 1.4, .6, 1); }
+
+@keyframes pop {
+  from { transform: scale(.85); opacity: 0; transform-origin: right center; }
+  to { transform: scale(1); opacity: 1; transform-origin: right center; }
+}
+
+/* the opener whose palette is open */
+.opener[aria-expanded="true"] { background: var(--chip); box-shadow: 0 0 0 2px var(--edge); }
+
+/* tool opener: the active tool's icon */
+#tool-now svg { padding: 4%; }
+
+/* width opener: a short stroke as thick as the current line, in the current colour,
+   so it never looks like the colour dot below it */
+#width-now i {
+  display: block;
+  width: 70%;
+  height: calc(var(--dot, 16px) * .5);
+  border-radius: 999px;
+  transform: rotate(-35deg);
+  background: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+/* line widths: short strokes, their thickness is the line width */
+#widths { align-items: center; }
+
 #widths .btn {
-  width: calc(var(--t) * .72);
-  height: calc(var(--t) * .72);
-  border-radius: 50%;
+  width: var(--t);
+  height: var(--t);
+  border-radius: 28%;
   display: grid;
   place-items: center;
+  color: var(--ink);
 }
 
 #widths .btn::before {
   content: "";
-  border-radius: 50%;
+  border-radius: 999px;
   background: currentColor;
-  width: var(--dot);
-  height: var(--dot);
+  transform: rotate(-35deg);
+  width: 70%;
+  height: calc(var(--dot) * .5);
   box-shadow: inset 0 0 0 1px var(--edge);
 }
 
-#widths .btn.on { box-shadow: 0 0 0 2px var(--chip), 0 0 0 4px var(--ring); border-radius: 50%; }
+#widths .btn.on { box-shadow: 0 0 0 2px var(--ring); }
 
-/* colour grid inside the expanded panel */
-#palette {
-  display: grid;
+/* The size button works for every tool: the eraser previews in a neutral grey,
+   letters preview as an "A" at each size. */
+[data-tool="eraser"] #width-now i { background: var(--fg); }
+[data-tool="eraser"] #widths .btn { color: var(--fg); }
+
+[data-tool="abc"] #width-now i,
+[data-tool="abc"] #widths .btn::before {
+  width: auto;
+  height: auto;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  border-radius: 0;
+  color: var(--ink);
+  font: 700 var(--a)/1 var(--kid-font);
+}
+[data-tool="abc"] #width-now i::before,
+[data-tool="abc"] #widths .btn::before { content: "A"; }
+
+/* colour grid: two rows of seven */
+.pop#palette {
+  display: none;
   grid-template-columns: repeat(7, var(--d));
   grid-auto-rows: var(--d);
-  gap: calc(var(--d) * .16);
-  padding: calc(var(--d) * .1);
+  gap: calc(var(--d) * .2);
+  padding: calc(var(--t) * .28);
 }
-
-/* Narrow phones: compact the picker so it covers as little of the drawing as
-   possible — the palette wraps to 4 columns and the tools flow onto two rows. */
-@media (max-width: 480px) {
-  #palette { grid-template-columns: repeat(4, var(--d)); }
-  #tools-row { display: grid; grid-template-columns: repeat(3, var(--t)); justify-items: center; }
-}
+.pop#palette.open { display: grid; }
 
 .btn {
   width: var(--t);
@@ -317,19 +339,11 @@ body.busy #panel, body.busy #actions { opacity: .28; }
 
 .tool.on svg { transform: translateY(-6%) scale(1.08); }
 
-/* colour badge in the edge strip: solid current colour over split last colour */
-#badge {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(var(--t) * .1);
-  pointer-events: none;
-}
-
+/* colour opener: the current colour */
 #badge i {
   display: block;
-  width: calc(var(--t) * .5);
-  height: calc(var(--t) * .5);
+  width: calc(var(--t) * .55);
+  height: calc(var(--t) * .55);
   border-radius: 50%;
   box-shadow: inset 0 0 0 1.5px var(--edge);
 }

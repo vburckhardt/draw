@@ -34,7 +34,7 @@ Draw is a drawing page for small kids: one canvas, a few tools (crayon, pencil, 
   node test/ui.test.mjs            # or: CHROME_BIN=/path/to/chrome node test/ui.test.mjs
   ```
 
-  It runs headless Chromium at iPhone size (390x844, dark + light, touch) and checks: strip/picker docking and overlap, picker collapse/expand, colour picking and badge state, busy fade while drawing, undo restoring a blank canvas, and the letters keyboard. It also writes screenshots to `test/` (`shot-{dark,light}-{abc,open}.png`).
+  It runs headless Chromium at iPhone size (390x844, dark + light, touch) and checks: the openers strip and the separate undo/bin pill docking, each of the three palettes (tools, line width, colours) opening on its own beside its opener, picking from each and the opener showing the active tool/size/colour, the size button setting letter size with ABC, the toolbar staying fully visible while drawing, undo restoring a blank canvas, and the letters keyboard. It also writes screenshots to `test/` (`shot-{dark,light}-{tools,widths,palette,abc,letter-sizes}.png`).
 
 - **Always LOOK at the screenshots** after the run: read them back and verify where the UI actually renders (which edge, what overlaps, what is visible). Layout regressions are only caught by inspecting pixels, not by passing assertions. If `CHROME_BIN` is unset, playwright uses its bundled browser; if it fails to launch with missing shared libraries, install the headless shell's deps or point `CHROME_BIN` at any working Chromium.
 - After changing `index.html`, `style.css` or `app.js`, bump the cache version in `sw.js` so returning users get the update.
