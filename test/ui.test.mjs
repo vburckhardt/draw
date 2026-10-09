@@ -90,17 +90,14 @@ for (const dark of [true, false]) {
   ok(await page.locator('#tool-now').getAttribute('data-tool') === 'marker', 'tool opener shows the marker after picking it');
   ok(await page.locator('#tool-now svg').count() === 1, 'tool opener has the tool icon');
 
-  // --- draw a stroke: busy fade applies
+  // --- draw a stroke: the toolbar stays fully visible (no fade while drawing)
   await page.mouse.move(100, 400);
   await page.mouse.down();
   await page.mouse.move(200, 500, { steps: 5 });
+  await page.waitForTimeout(400);
+  const opacity = await page.evaluate(() => ['pickers', 'actions'].map((id) => getComputedStyle(document.getElementById(id)).opacity));
   await page.mouse.up();
-  await page.waitForTimeout(150);
-  const busy = await page.evaluate(() => document.body.classList.contains('busy'));
-  ok(busy, 'busy class set while drawing');
-  await page.waitForTimeout(1200);
-  const notBusy = await page.evaluate(() => !document.body.classList.contains('busy'));
-  ok(notBusy, 'busy clears after lifting');
+  ok(opacity.every((o) => o === '1'), 'toolbar stays fully visible while drawing');
 
   // --- undo removes the stroke
   await page.locator('[data-action="undo"]').tap();

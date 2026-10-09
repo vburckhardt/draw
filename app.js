@@ -332,7 +332,6 @@
     ops.push(stroke);
     devStrokes++;
     live.set(e.pointerId, { stroke, state });
-    setBusy(true);
     drawPoint(ctx, stroke, state);
   });
 
@@ -357,7 +356,6 @@
     l.stroke.done = true;
     drawTail(ctx, l.stroke);
     trim();
-    setBusy(false);
   }
   paper.addEventListener('pointerup', end);
   paper.addEventListener('pointercancel', end);
@@ -710,16 +708,6 @@
     if (b.dataset.action === 'undo') { if (undo()) bump(b); }
     else if (b.dataset.action === 'clear') { if (clearPage()) bump(b); }
   });
-
-  // While a finger or pen is drawing, the floating controls step back, and the
-  // colour and tool pills collapse to their active chip. Lifting the pen (or a
-  // pointer hovering near them) expands them again.
-  let busyTimer = 0;
-  function setBusy(on) {
-    clearTimeout(busyTimer);
-    if (on) document.body.classList.add('busy');
-    else busyTimer = setTimeout(() => document.body.classList.remove('busy'), 900);
-  }
 
   // Keyboard on a Mac: Cmd/Ctrl+Z undoes; typing letters switches to the ABC tool.
   window.addEventListener('keydown', (e) => {

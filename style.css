@@ -184,11 +184,7 @@ body {
   border: 1px solid var(--edge);
   box-shadow: 0 4px 16px rgba(0, 0, 0, .16);
   color: var(--fg);
-  transition: opacity .25s ease;
 }
-
-/* While drawing, the chrome steps back. */
-body.busy #pickers, body.busy #actions, body.busy .pop { opacity: .28; }
 
 #pickers, #actions {
   right: calc(8px + max(8px, env(safe-area-inset-right)));
