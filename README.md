@@ -8,6 +8,7 @@ A drawing page for small kids. It's one canvas with a crayon, a pencil, a marker
 - Pinch-zoom, scrolling, text selection and long-press menus are turned off, so a kid can't get lost.
 - **Undo** (↶) takes back the last line. The **bin** clears the page, and undo brings it back.
 - **Letters (ABC block)** opens a big keyboard with A–Z in alphabetical order and 0–9, so kids can type their name. Tap the page to choose where the letters go. The ⌫ key takes back the last letter, and the **abc/ABC** key switches between small and capital letters. Words move to the next line at the edge of the screen. On a Mac, typing on the real keyboard works too.
+- The **size** button sets the line width, the eraser size, or the letter size with ABC.
 - Picking a colour while the eraser is on switches back to the last drawing tool.
 - After the first visit it works offline (service worker).
 
@@ -27,6 +28,6 @@ For a kid, also turn on **Guided Access** (Settings → Accessibility → Guided
 | File | What |
 | --- | --- |
 | `index.html` | page and toolbar |
-| `style.css` | layout: toolbar at the bottom in portrait, on the left in landscape |
+| `style.css` | layout: tool, size and colour openers plus undo/bin on the right edge; letter keyboard at the bottom |
 | `app.js` | drawing, letters, tools, undo/clear |
 | `sw.js`, `manifest.webmanifest`, `icons/` | offline support and home-screen app |
