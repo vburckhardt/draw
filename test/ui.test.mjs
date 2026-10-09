@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const page_ = 'file://' + path.join(root, '..', 'index.html');
+const url = 'file://' + path.join(root, '..', 'index.html');
 const phone = { width: 390, height: 844 };   // iPhone 14
 let failures = 0;
 const ok = (cond, msg) => {
@@ -12,20 +12,38 @@ const ok = (cond, msg) => {
 };
 
 // CHROME_BIN: path to a headless Chromium; set it if playwright's bundled browser
-// can't run (missing system libs). See AGENTS.md "Visual testing".
+// can't run (missing system libs). See AGENTS.md "Testing Instructions".
 const browser = await chromium.launch(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {});
 for (const dark of [true, false]) {
   const ctx = await browser.newContext({ viewport: phone, deviceScaleFactor: 2, colorScheme: dark ? 'dark' : 'light', hasTouch: true, isMobile: true });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  await page.goto(page_);
+  await page.goto(url);
   await page.waitForTimeout(300);
 
   const mode = dark ? 'dark' : 'light';
   const box = (sel) => page.locator(sel).boundingBox();
   const shown = async (sel) => page.locator(sel).isVisible();
   const openNow = () => page.evaluate(() => [...document.querySelectorAll('.pop.open')].map((p) => p.id));
+  const tap = async (sel, wait = 300) => {
+    await page.locator(sel).tap();
+    await page.waitForTimeout(wait);
+  };
+  // open a palette and pick the item matching `item`
+  const pick = async (id, item) => {
+    await tap(`[data-open="${id}"]`);
+    await tap(`#${id} ${item}`);
+  };
+  const blankPage = () => page.evaluate(() => {
+    const p = document.getElementById('paper');
+    return p.getContext('2d').getImageData(0, 0, p.width, p.height).data.every((v, i) => i % 4 !== 3 || v === 0);
+  });
+  const drawLine = async () => {
+    await page.mouse.move(100, 400);
+    await page.mouse.down();
+    await page.mouse.move(200, 500, { steps: 5 });
+  };
 
   // --- collapsed state on load: openers strip and a separate actions pill
   const strip = await box('#pickers');
@@ -41,8 +59,7 @@ for (const dark of [true, false]) {
   // --- three palettes, each from its own opener, one at a time
   const palettes = [['tools', 5, '.tool'], ['widths', 5, '.btn'], ['palette', 14, '.swatch']];
   for (const [id, n, item] of palettes) {
-    await page.locator(`[data-open="${id}"]`).tap();
-    await page.waitForTimeout(350);
+    await tap(`[data-open="${id}"]`, 350);
     ok(JSON.stringify(await openNow()) === JSON.stringify([id]), `${id}: only its palette opens`);
     ok(await page.locator(`#${id} ${item}`).count() === n, `${id}: ${n} items`);
     const pop = await box(`#${id}`);
@@ -55,26 +72,19 @@ for (const dark of [true, false]) {
     await page.screenshot({ path: path.join(root, `shot-${mode}-${id}.png`) });
   }
   // tapping the open palette's opener again closes it
-  await page.locator('[data-open="palette"]').tap();
-  await page.waitForTimeout(200);
+  await tap('[data-open="palette"]', 200);
   ok((await openNow()).length === 0, 'tapping the opener again closes its palette');
 
   // --- pick a colour: palette closes, colour opener updates
-  await page.locator('[data-open="palette"]').tap();
-  await page.waitForTimeout(300);
-  await page.locator('#palette .swatch').nth(5).tap();
-  await page.waitForTimeout(350);
+  await pick('palette', '.swatch:nth-child(6)');
   ok((await openNow()).length === 0, 'palette closes after colour pick');
-  const c = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--c').trim());
-  ok(c === '#35b6f0', 'colour opener matches the picked swatch');
+  const c = await page.locator('#badge i').evaluate((e) => getComputedStyle(e).backgroundColor);
+  ok(c === 'rgb(53, 182, 240)', 'colour opener matches the picked swatch');
   ok(await page.locator('#badge i').count() === 1, 'exactly one colour dot in the colour opener');
 
   // --- pick a width: it takes effect and the opener dot grows
   const dotBefore = (await page.locator('#width-now i').evaluate((e) => e.offsetHeight));
-  await page.locator('[data-open="widths"]').tap();
-  await page.waitForTimeout(300);
-  await page.locator('#widths .btn').nth(4).tap();
-  await page.waitForTimeout(300);
+  await pick('widths', '.btn:nth-child(5)');
   ok((await openNow()).length === 0, 'widths close after picking one');
   ok(await page.locator('#widths .btn.on').count() === 1 && await page.locator('#widths .btn').nth(4).evaluate((b) => b.classList.contains('on')),
     'picked width is marked');
@@ -82,39 +92,35 @@ for (const dark of [true, false]) {
 
   // --- tool opener shows the active tool
   ok(await page.locator('#tool-now').getAttribute('data-tool') === 'crayon', 'tool opener shows crayon at start');
-  await page.locator('[data-open="tools"]').tap();
-  await page.waitForTimeout(300);
-  await page.locator('[data-tool="marker"]').tap();
-  await page.waitForTimeout(300);
+  await pick('tools', '[data-tool="marker"]');
   ok((await openNow()).length === 0, 'tools close after picking one');
   ok(await page.locator('#tool-now').getAttribute('data-tool') === 'marker', 'tool opener shows the marker after picking it');
   ok(await page.locator('#tool-now svg').count() === 1, 'tool opener has the tool icon');
 
   // --- draw a stroke: the toolbar stays fully visible (no fade while drawing)
-  await page.mouse.move(100, 400);
-  await page.mouse.down();
-  await page.mouse.move(200, 500, { steps: 5 });
+  await drawLine();
   await page.waitForTimeout(400);
   const opacity = await page.evaluate(() => ['pickers', 'actions'].map((id) => getComputedStyle(document.getElementById(id)).opacity));
   await page.mouse.up();
   ok(opacity.every((o) => o === '1'), 'toolbar stays fully visible while drawing');
 
+  ok(!(await blankPage()), 'the stroke is on the page');
+
   // --- undo removes the stroke
-  await page.locator('[data-action="undo"]').tap();
-  await page.waitForTimeout(200);
-  const blank = await page.evaluate(async () => {
-    const p = document.getElementById('paper');
-    const d = p.getContext('2d').getImageData(0, 0, p.width, p.height).data;
-    for (let i = 3; i < d.length; i += 4) if (d[i] !== 0) return false;
-    return true;
-  });
-  ok(blank, 'undo restores a blank page');
+  await tap('[data-action="undo"]', 200);
+  ok(await blankPage(), 'undo restores a blank page');
+
+  // --- the bin clears the page, and undo brings the drawing back
+  await drawLine();
+  await page.mouse.up();
+  await tap('[data-action="clear"]', 200);
+  ok(await blankPage(), 'the bin clears the page');
+  await tap('[data-action="undo"]', 200);
+  ok(!(await blankPage()), 'undo after the bin brings the drawing back');
+  await tap('[data-action="undo"]', 200);
 
   // --- letters keyboard opens with the ABC tool
-  await page.locator('[data-open="tools"]').tap();
-  await page.waitForTimeout(300);
-  await page.locator('[data-tool="abc"]').tap();
-  await page.waitForTimeout(300);
+  await pick('tools', '[data-tool="abc"]');
   ok(await shown('#keys'), 'letter keyboard appears for ABC tool');
   ok(await page.locator('#tool-now').getAttribute('data-tool') === 'abc', 'tool opener shows ABC');
   const keys = await box('#keys');
@@ -127,11 +133,9 @@ for (const dark of [true, false]) {
   await page.mouse.click(60, 300);   // place the cursor
   await page.waitForTimeout(100);
   const caretBefore = (await box('#caret')).height;
-  await page.locator('[data-open="widths"]').tap();
-  await page.waitForTimeout(300);
+  await tap('[data-open="widths"]');
   await page.screenshot({ path: path.join(root, `shot-${mode}-letter-sizes.png`) });
-  await page.locator('#widths .btn').nth(0).tap();
-  await page.waitForTimeout(200);
+  await tap('#widths .btn:first-child', 200);
   ok((await box('#caret')).height < caretBefore, 'smallest size makes the letters smaller');
   await page.screenshot({ path: path.join(root, `shot-${mode}-abc.png`) });
 

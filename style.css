@@ -12,9 +12,6 @@
   --key-fg: #2b2b2b;
   --veil: rgba(241, 238, 232, .92);
   --kid-font: "Chalkboard SE", "Comic Sans MS", "Marker Felt", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
-  /* button size: as big as fits 7 buttons across the short side, up to 68px */
-  --s: min(60px, calc((100vmin - 30px) / 7.7));
-  --gap: calc(var(--s) * .1);
   /* letter key size: 8 keys across the short side, up to 60px */
   --k: min(60px, calc((100vmin - 24px) / 9));
   /* compact overlay controls: small icons hugging the edges */
@@ -168,8 +165,6 @@ body {
   40% { transform: scale(.82); }
 }
 
-/* ---------- toolbar ---------- */
-
 /* ---------- ink toolbar: openers strip, actions pill, three palettes ----------
    Right edge, top: a pill with three openers (tool, line width, colour), each
    showing what is active now; below it, a pill with undo and the bin. Tapping an
@@ -209,13 +204,13 @@ body {
   gap: calc(var(--t) * .18);
   padding: calc(var(--t) * .22);
   border-radius: calc(var(--t) * .5);
+  transform-origin: right center;
 }
 
 .pop.open { display: flex; animation: pop .22s cubic-bezier(.3, 1.4, .6, 1); }
 
 @keyframes pop {
-  from { transform: scale(.85); opacity: 0; transform-origin: right center; }
-  to { transform: scale(1); opacity: 1; transform-origin: right center; }
+  from { transform: scale(.85); opacity: 0; }
 }
 
 /* the opener whose palette is open */
@@ -239,14 +234,7 @@ body {
 /* line widths: short strokes, their thickness is the line width */
 #widths { align-items: center; }
 
-#widths .btn {
-  width: var(--t);
-  height: var(--t);
-  border-radius: 28%;
-  display: grid;
-  place-items: center;
-  color: var(--ink);
-}
+#widths .btn { color: var(--ink); }
 
 #widths .btn::before {
   content: "";
@@ -281,7 +269,6 @@ body {
 
 /* colour grid: two rows of seven */
 .pop#palette {
-  display: none;
   grid-template-columns: repeat(7, var(--d));
   grid-auto-rows: var(--d);
   gap: calc(var(--d) * .2);
@@ -305,8 +292,6 @@ body {
   place-items: center;
   transition: transform .15s ease, background-color .15s ease;
 }
-
-#actions .btn { width: var(--t); height: var(--t); }
 
 .btn svg {
   width: 100%;
@@ -348,7 +333,7 @@ body {
   box-shadow: inset 0 0 0 1.5px var(--edge);
 }
 
-#badge i.now { background: var(--c); }
+#badge i.now { background: var(--ink); }
 
 .swatch {
   width: var(--d);

@@ -7,7 +7,7 @@ Draw is a drawing page for small kids: one canvas, a few tools (crayon, pencil, 
 | File | What |
 | --- | --- |
 | `index.html` | page and toolbar |
-| `style.css` | layout: toolbar at the bottom in portrait, on the left in landscape |
+| `style.css` | layout: tool, size and colour openers plus undo/bin on the right edge; letter keyboard at the bottom |
 | `app.js` | drawing, letters, tools, undo/clear |
 | `sw.js`, `manifest.webmanifest`, `icons/` | offline support and home-screen app |
 

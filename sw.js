@@ -1,6 +1,6 @@
 // Online: fetch the whole app as one unit (so HTML/CSS/JS always match), keep a copy.
 // Offline: use the saved copy. Files are only swapped together, never mixed.
-const CACHE = "draw-v17";
+const CACHE = 'draw-v18';
 const FILES = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
@@ -19,18 +19,14 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((c) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  if (e.request.mode === 'navigate') {
-    e.respondWith(pageFirst(e));
-  } else {
-    e.respondWith(networkFirst(e));
-  }
+  e.respondWith(e.request.mode === 'navigate' ? pageFirst(e) : networkFirst(e));
 });
 
 // The page decides the version: fetch the latest HTML; if it changed, refresh the
@@ -53,14 +49,10 @@ async function pageFirst(e) {
   return (await c.match(e.request, { ignoreSearch: true })) || fetch(e.request);
 }
 
-// Re-download every file together. On failure keep the previous complete set.
-async function refresh(c) {
-  const old = await Promise.all(FILES.map((f) => c.match(f, { ignoreSearch: true })));
-  try {
-    await c.addAll(FILES);
-  } catch (_) {
-    return;
-  }
+// Re-download every file together. addAll is all-or-nothing, so on failure the
+// previous complete set stays.
+function refresh(c) {
+  return c.addAll(FILES).catch(() => {});
 }
 
 async function networkFirst(e) {
