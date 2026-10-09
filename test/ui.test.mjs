@@ -41,9 +41,9 @@ for (const dark of [true, false]) {
     ok(panel.y < 100 && panel.y + panel.height < phone.height, 'picker docked top-right, on screen');
     ok(panel.x + panel.width <= strip.x + 4, 'picker does not overlap the strip');
     ok(panel.x > 20, 'picker not at center-left');
-    const mid = phone.width / 2;
-    const overlapsCenter = panel.x < mid && panel.x + panel.width > mid;
-    console.log((overlapsCenter ? 'WARN ' : 'PASS ') + 'picker horizontal reach (center overlap: ' + overlapsCenter + ')');
+    ok(panel.y + panel.height < phone.height * 0.5, 'picker stays in the top half of the screen');
+    const gap = strip.x - (panel.x + panel.width);
+    ok(gap >= 4 && gap <= 24, 'picker sits beside the strip with a small gap');
   }
 
   // widths and swatches inside the panel only

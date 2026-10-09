@@ -260,6 +260,13 @@ body.busy #panel, body.busy #actions { opacity: .28; }
   padding: calc(var(--d) * .1);
 }
 
+/* Narrow phones: compact the picker so it covers as little of the drawing as
+   possible — the palette wraps to 4 columns and the tools flow onto two rows. */
+@media (max-width: 480px) {
+  #palette { grid-template-columns: repeat(4, var(--d)); }
+  #tools-row { display: grid; grid-template-columns: repeat(3, var(--t)); justify-items: center; }
+}
+
 .btn {
   width: var(--t);
   height: var(--t);
