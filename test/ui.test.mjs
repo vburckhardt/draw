@@ -56,8 +56,8 @@ for (const dark of [true, false]) {
   ok((await openNow()).length === 0, 'no palette open on load');
   ok(!(await shown('#keys')), 'letter keyboard hidden');
 
-  // --- three palettes, each from its own opener, one at a time
-  const palettes = [['tools', 5, '.tool'], ['widths', 5, '.btn'], ['palette', 14, '.swatch']];
+  // --- four palettes, each from its own opener, one at a time
+  const palettes = [['tools', 5, '.tool'], ['widths', 5, '.btn'], ['palette', 14, '.swatch'], ['shapes', 12, '.shape']];
   for (const [id, n, item] of palettes) {
     await tap(`[data-open="${id}"]`, 350);
     ok(JSON.stringify(await openNow()) === JSON.stringify([id]), `${id}: only its palette opens`);
@@ -72,7 +72,7 @@ for (const dark of [true, false]) {
     await page.screenshot({ path: path.join(root, `shot-${mode}-${id}.png`) });
   }
   // tapping the open palette's opener again closes it
-  await tap('[data-open="palette"]', 200);
+  await tap('[data-open="shapes"]', 200);
   ok((await openNow()).length === 0, 'tapping the opener again closes its palette');
 
   // --- pick a colour: palette closes, colour opener updates
@@ -109,6 +109,24 @@ for (const dark of [true, false]) {
   // --- undo removes the stroke
   await tap('[data-action="undo"]', 200);
   ok(await blankPage(), 'undo restores a blank page');
+
+  // --- a shape stamps a big outline in the current colour, clear of the toolbar
+  await pick('shapes', '[data-shape="Titanic"]');
+  ok((await openNow()).length === 0, 'shapes close after picking one');
+  ok(!(await blankPage()), 'the shape is on the page');
+  const inked = await page.evaluate(() => {
+    const p = document.getElementById('paper');
+    const d = p.getContext('2d').getImageData(0, 0, p.width, p.height).data;
+    let x0 = Infinity, x1 = -1;
+    for (let i = 3; i < d.length; i += 4) if (d[i]) { const x = (i >> 2) % p.width; x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+    return [x0 / 2, x1 / 2];
+  });
+  ok(inked[1] - inked[0] > phone.width * 0.5, 'the shape is big');
+  ok(inked[1] < strip.x, 'the shape stays left of the toolbar');
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'marker', 'stamping keeps the drawing tool for colouring in');
+  await page.screenshot({ path: path.join(root, `shot-${mode}-shape.png`) });
+  await tap('[data-action="undo"]', 200);
+  ok(await blankPage(), 'undo takes the shape back');
 
   // --- the bin clears the page, and undo brings the drawing back
   await drawLine();
