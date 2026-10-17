@@ -28,6 +28,23 @@
   // Size steps, small to big: line width for drawing tools, eraser size, letter size.
   const WIDTHS = [.55, .8, 1, 1.6, 2.4];
 
+  // Outlines to stamp on the page and colour in, drawn in a 100x100 box.
+  // The maps are traced from real coastlines.
+  const SHAPES = [
+    ['France', 'M50 5 L51 5 L55 8 L62 12 L65 14 L66 17 L72 19 L76 20 L80 23 L87 25 L85 29 L83 37 L80 38 L79 40 L74 47 L73 51 L78 52 L80 57 L77 61 L80 63 L79 67 L83 72 L81 74 L79 77 L76 79 L73 79 L69 78 L65 77 L63 76 L60 76 L56 78 L54 81 L55 85 L51 86 L45 85 L39 82 L33 82 L26 78 L23 77 L25 74 L27 66 L27 57 L27 51 L23 48 L21 43 L18 40 L16 38 L12 36 L7 35 L4 33 L6 30 L4 28 L7 28 L11 27 L17 28 L22 28 L24 28 L24 22 L22 18 L27 18 L27 21 L33 21 L36 20 L37 17 L44 14 L45 11 L45 7 L47 6 Z M95 80 L96 84 L95 90 L94 95 L91 93 L90 91 L90 86 L94 83 Z'],
+    ['Ireland', 'M58 4 L65 8 L74 8 L81 18 L79 22 L85 25 L81 30 L76 36 L74 43 L76 52 L77 61 L72 78 L63 80 L55 84 L45 88 L35 94 L24 96 L27 90 L20 88 L27 87 L17 83 L24 80 L15 80 L23 76 L26 70 L35 68 L30 64 L31 56 L35 54 L27 54 L19 50 L23 43 L19 37 L23 30 L33 29 L41 30 L42 25 L38 21 L42 16 L45 9 L53 8 Z'],
+    ['Titanic', 'M4 54 L96 54 L88 76 L14 76 Q8 70 4 54 Z M16 54 V46 H82 V54 M26 46 L22 22 H30 L33 46 M40 46 L36 22 H44 L47 46 M54 46 L50 22 H58 L61 46 M68 46 L64 22 H72 L75 46 M10 54 L12 18 M90 54 L88 14 M12 18 L88 14 M22 64 h0.1 M32 64 h0.1 M42 64 h0.1 M52 64 h0.1 M62 64 h0.1 M72 64 h0.1 M82 64 h0.1'],
+    ['Eiffel Tower', 'M50 2 V10 M46 10 H54 L56 36 L64 62 L82 96 H64 Q50 74 36 96 H18 L36 62 L44 36 Z M42 36 H58 M33 62 H67'],
+    ['Sailboat', 'M48 8 V70 M48 12 L80 62 H48 M44 18 L18 62 H44 M10 72 H90 L80 86 H20 Z'],
+    ['Rocket', 'M50 4 Q68 20 66 58 H34 Q32 20 50 4 Z M34 44 L20 64 L34 64 M66 44 L80 64 L66 64 M40 64 L44 76 H56 L60 64 M44 80 L50 96 L56 80 M50 34 m-7 0 a7 7 0 1 0 14 0 a7 7 0 1 0 -14 0'],
+    ['Plane', 'M8 50 Q8 42 18 42 H80 Q94 44 96 50 Q94 56 80 58 H18 Q8 58 8 50 Z M40 42 L56 14 H64 L58 42 M40 58 L56 86 H64 L58 58 M14 42 L8 26 H16 L24 42 M78 46 H88'],
+    ['Car', 'M6 70 V56 Q6 50 14 48 L28 46 L38 30 H66 L78 46 L88 48 Q94 50 94 58 V70 H80 M60 70 H40 M20 70 H6 M38 46 H78 M52 30 V46 M30 70 m-10 0 a10 10 0 1 0 20 0 a10 10 0 1 0 -20 0 M70 70 m-10 0 a10 10 0 1 0 20 0 a10 10 0 1 0 -20 0'],
+    ['House', 'M10 46 L50 10 L90 46 M20 38 V92 H80 V38 M42 92 V66 H58 V92 M28 50 H40 V62 H28 Z M60 50 H72 V62 H60 Z M66 24 V12 H76 V33'],
+    ['Star', 'M50 6 L62 36 L94 38 L69 58 L78 90 L50 72 L22 90 L31 58 L6 38 L38 36 Z'],
+    ['Heart', 'M50 88 C20 66 6 50 6 32 C6 18 16 10 28 10 C38 10 46 16 50 26 C54 16 62 10 72 10 C84 10 94 18 94 32 C94 50 80 66 50 88 Z'],
+    ['Fish', 'M14 50 Q40 20 70 40 L92 24 L86 50 L92 76 L70 60 Q40 80 14 50 Z M30 46 h0.1 M56 36 Q62 50 56 64'],
+  ];
+
   const FONT = getComputedStyle(document.documentElement).getPropertyValue('--kid-font').trim();
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -262,6 +279,7 @@
   function renderOp(c, op) {
     if (op.type === 'clear') return wipe(c);
     if (op.type === 'text') return drawLetter(c, op);
+    if (op.type === 'shape') return drawShape(c, op);
     const st = newState(op);
     while (st.i < op.pts.length) drawPoint(c, op, st);
     if (op.done) drawTail(c, op);
@@ -506,6 +524,47 @@
     b.classList.add('tap');
   });
 
+  // ---------- shapes ----------
+
+  const shapePaths = new Map(SHAPES.map(([name, d]) => [name, new Path2D(d)]));
+
+  function drawShape(c, op) {
+    c.save();
+    try {
+      c.globalCompositeOperation = 'source-over';
+      c.translate(op.x, op.y);
+      c.scale(op.s / 100, op.s / 100);
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      c.lineWidth = op.w * 100 / op.s;
+      c.strokeStyle = op.color;
+      c.stroke(shapePaths.get(op.name));
+    } finally {
+      c.restore();
+    }
+  }
+
+  // A big outline in the middle of the free part of the page, ready to colour in.
+  // The size button sets how thick its line is.
+  function stampShape(name) {
+    stopLive();
+    resetTransform();
+    const r = board.getBoundingClientRect();
+    const right = Math.min(r.width, pickers.getBoundingClientRect().left - r.left) - 12;
+    const s = Math.round(Math.min(right - 12, r.height - 24) * 0.85);
+    const op = {
+      type: 'shape', name, color, s,
+      x: Math.round((right - s) / 2 + 6),
+      y: Math.round((r.height - s) / 2),
+      w: 4 + 3 * widthMul,
+    };
+    ops.push(op);
+    drawShape(ctx, op);
+    trim();
+    // Next comes colouring it in, so leave the eraser or letters for a drawing tool.
+    if (tool === 'eraser' || tool === 'abc') selectTool(lastDrawTool);
+  }
+
   // ---------- toolbar ----------
 
   const palette = document.getElementById('palette');
@@ -515,7 +574,8 @@
   const toolsEl = document.getElementById('tools');
   const toolNow = document.getElementById('tool-now');
   const widthNow = document.getElementById('width-now');
-  const pops = [toolsEl, widthsEl, palette];
+  const shapesEl = document.getElementById('shapes');
+  const pops = [toolsEl, widthsEl, palette, shapesEl];
   const swatches = COLORS.map(() => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -563,6 +623,16 @@
       cur.size = letterSize();
       showCaret();
     }
+  }
+
+  for (const [name, d] of SHAPES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn shape';
+    b.dataset.shape = name;
+    b.setAttribute('aria-label', name);
+    b.innerHTML = `<svg viewBox="-4 -4 108 108" aria-hidden="true"><path d="${d}"/></svg>`;
+    shapesEl.appendChild(b);
   }
 
   const tools = [...toolsEl.querySelectorAll('[data-tool]')];
@@ -709,6 +779,7 @@
   onPick(toolsEl, 'tool', selectTool);
   onPick(widthsEl, 'mul', (m) => markWidth(+m));
   onPick(palette, 'color', selectColor);
+  onPick(shapesEl, 'shape', stampShape);
   actions.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const b = e.target.closest('.btn');

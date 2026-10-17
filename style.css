@@ -165,10 +165,11 @@ body {
   40% { transform: scale(.82); }
 }
 
-/* ---------- ink toolbar: openers strip, actions pill, three palettes ----------
-   Right edge, top: a pill with three openers (tool, line width, colour), each
-   showing what is active now; below it, a pill with undo and the bin. Tapping an
-   opener pops its own palette out beside it; only one is open at a time. */
+/* ---------- ink toolbar: openers strip, actions pill, palettes ----------
+   Right edge, top: a pill with the openers (tool, line width, colour, shapes),
+   the first three showing what is active now; below it, a pill with undo and the
+   bin. Tapping an opener pops its own palette out beside it; only one is open at
+   a time. */
 
 #pickers, #actions, .pop {
   position: fixed;
@@ -194,7 +195,7 @@ body {
 #pickers { top: calc(10px + max(10px, env(safe-area-inset-top))); }
 
 /* app.js puts the actions pill just under the openers pill */
-#actions { top: var(--actions-top, calc(10px + max(10px, env(safe-area-inset-top)) + var(--t) * 3.9)); }
+#actions { top: var(--actions-top, calc(10px + max(10px, env(safe-area-inset-top)) + var(--t) * 5.1)); }
 
 /* A palette hangs beside the strip, centred on its opener (app.js sets --top). */
 .pop {
@@ -334,6 +335,19 @@ body {
 }
 
 #badge i.now { background: var(--ink); }
+
+/* shapes: line drawings in the current colour, three across */
+.pop#shapes { grid-template-columns: repeat(3, var(--t)); }
+.pop#shapes.open { display: grid; }
+
+#shapes-now svg, .shape svg {
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#shapes-now svg { padding: 10%; stroke-width: 5; }
+.shape svg { padding: 6%; stroke-width: 6; }
 
 .swatch {
   width: var(--d);

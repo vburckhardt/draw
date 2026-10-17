@@ -26,12 +26,17 @@
   <!-- letter keyboard, shown while the ABC tool is on; keys are added by app.js -->
   <div id="keys" hidden aria-label="Letters and numbers"></div>
 
-  <!-- right-edge strip: three openers (tool, line width, colour), each showing what
-       is active now; tapping one opens its own palette beside it -->
+  <!-- right-edge strip: openers for tool, line width and colour, each showing what
+       is active now, and shapes; tapping one opens its own palette beside it -->
   <nav id="pickers" aria-label="Ink">
     <button type="button" class="btn opener" data-open="tools" id="tool-now" aria-label="Tools" aria-expanded="false"></button>
     <button type="button" class="btn opener" data-open="widths" id="width-now" aria-label="Line width" aria-expanded="false"><i></i></button>
     <button type="button" class="btn opener" data-open="palette" id="badge" aria-label="Colours" aria-expanded="false"><i class="now"></i></button>
+    <button type="button" class="btn opener" data-open="shapes" id="shapes-now" aria-label="Shapes" aria-expanded="false">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 9 L38.5 24.5 L55 25.5 L42 36 L46.5 52.5 L32 43 L17.5 52.5 L22 36 L9 25.5 L25.5 24.5 Z"/>
+      </svg>
+    </button>
   </nav>
 
   <!-- the common actions, in their own pill below -->
@@ -51,7 +56,7 @@
     </button>
   </nav>
 
-  <!-- the three palettes; only one is open at a time -->
+  <!-- the palettes; only one is open at a time -->
   <div class="pop" id="tools" aria-label="Tools">
     <button type="button" class="btn tool" data-tool="crayon" aria-label="Crayon">
       <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -106,6 +111,9 @@
 
   <!-- colour swatches are added by app.js -->
   <div class="pop" id="palette" aria-label="Colours"></div>
+
+  <!-- outlines to stamp and colour in are added by app.js -->
+  <div class="pop" id="shapes" aria-label="Shapes"></div>
 
   <script src="app.js"></script>
 </body>
