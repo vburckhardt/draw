@@ -99,6 +99,20 @@ body {
   display: block;
 }
 
+/* the layer a picked shape floats on until it is dropped */
+#ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  pointer-events: none;
+  z-index: 2;
+}
+
+body.ghosting #ghost { pointer-events: auto; cursor: grab; }
+body.ghosting #ghost:active { cursor: grabbing; }
+body.ghosting #paper { pointer-events: none; }
+
 .whoosh {
   position: absolute;
   top: 0;
