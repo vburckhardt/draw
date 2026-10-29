@@ -53,6 +53,8 @@
 
   const board = document.getElementById('board');
   const paper = document.getElementById('paper');
+  const ghost = document.getElementById('ghost');
+  const gtx = ghost.getContext('2d');
   const keys = document.getElementById('keys');
   const caret = document.getElementById('caret');
   const ctx = paper.getContext('2d');
@@ -80,9 +82,13 @@
     if (w === W && h === H) return;
     grow(paper, w, h);
     grow(base, w, h);
+    grow(ghost, w, h);
     paper.style.width = w + 'px';
     paper.style.height = h + 'px';
+    ghost.style.width = w + 'px';
+    ghost.style.height = h + 'px';
     W = w; H = h;
+    if (float) drawGhost();
   }
 
   function grow(c, w, h) {
@@ -325,6 +331,7 @@
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     closePops();
+    cancelShape();
     if (tool === 'abc') {
       // Tap the page to choose where the letters go.
       const p = point(e);
@@ -419,6 +426,7 @@
 
   function typeLetter(ch) {
     stopLive();
+    cancelShape();
     ensureCursor();
     ctx.font = `bold ${cur.size}px ${FONT}`;
     const w = ctx.measureText(ch).width;
@@ -544,26 +552,118 @@
     }
   }
 
-  // A big outline in the middle of the free part of the page, ready to colour in.
-  // The size button sets how thick its line is.
+  // The shape picked from the palette, floating on the ghost layer until it is
+  // dropped. Drag it to move it; tap to drop it where you tap; release to place.
+  let float = null;   // { type:'shape', name, color, s, x, y, w, drag }
+
+  // A big outline in the middle of the free part of the page, ready to be moved
+  // and coloured in. The size button sets how thick its line is.
   function stampShape(name) {
     stopLive();
     resetTransform();
     const r = board.getBoundingClientRect();
     const right = Math.min(r.width, pickers.getBoundingClientRect().left - r.left) - 12;
     const s = Math.round(Math.min(right - 12, r.height - 24) * 0.85);
-    const op = {
+    float = {
       type: 'shape', name, color, s,
       x: Math.round((right - s) / 2 + 6),
       y: Math.round((r.height - s) / 2),
       w: 4 + 3 * widthMul,
+      drag: false,
+      // the shape is kept inside the free part of the page, clear of the toolbar
+      bounds: { x0: 6, x1: right - s, y0: 6, y1: r.height - s - 6 },
     };
+    document.body.classList.add('ghosting');
+    drawGhost();
+  }
+
+  function clampFloat() {
+    const b = float.bounds;
+    float.x = Math.round(Math.max(b.x0, Math.min(b.x1, float.x)));
+    float.y = Math.round(Math.max(b.y0, Math.min(b.y1, float.y)));
+  }
+
+  function drawGhost() {
+    if (!float) return;
+    gtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    wipe(gtx);
+    drawShape(gtx, float);
+  }
+
+  // Drop the floating shape on the page (committed, undoable), or take it back.
+  function placeShape() {
+    if (!float) return;
+    const op = { ...float };
+    delete op.drag;
+    delete op.bounds;
     ops.push(op);
+    float = null;
+    document.body.classList.remove('ghosting');
+    wipe(gtx);
+    resetTransform();
     drawShape(ctx, op);
     trim();
     // Next comes colouring it in, so leave the eraser or letters for a drawing tool.
     if (tool === 'eraser' || tool === 'abc') selectTool(lastDrawTool);
   }
+
+  function cancelShape() {
+    if (!float) return;
+    float = null;
+    document.body.classList.remove('ghosting');
+    wipe(gtx);
+  }
+
+  function ghostPoint(e) {
+    const r = ghost.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  ghost.addEventListener('pointerdown', (e) => {
+    if (!float || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    e.preventDefault();
+    closePops();
+    resetTransform();
+    try { ghost.setPointerCapture(e.pointerId); } catch (_) {}
+    const p = ghostPoint(e);
+    // A tap (no drag yet) drops the shape right where it is tapped.
+    float.drag = { id: e.pointerId, dx: float.x - p.x, dy: float.y - p.y, moved: false };
+    float.x = Math.round(p.x + float.drag.dx);
+    float.y = Math.round(p.y + float.drag.dy);
+    drawGhost();
+  });
+
+  ghost.addEventListener('pointermove', (e) => {
+    if (!float || !float.drag || float.drag.id !== e.pointerId) return;
+    e.preventDefault();
+    const p = ghostPoint(e);
+    const nx = Math.round(p.x + float.drag.dx);
+    const ny = Math.round(p.y + float.drag.dy);
+    if (nx !== float.x || ny !== float.y) {
+      float.drag.moved = true;
+      float.x = nx;
+      float.y = ny;
+      clampFloat();
+      drawGhost();
+    }
+  });
+
+  function dropShape(e) {
+    if (!float || !float.drag || float.drag.id !== e.pointerId) return;
+    const wasTap = !float.drag.moved;
+    float.drag = false;
+    if (wasTap) {
+      // A tap moves the shape's centre to the tap and drops it there.
+      const p = ghostPoint(e);
+      float.x = Math.round(p.x - float.s / 2);
+      float.y = Math.round(p.y - float.s / 2);
+      clampFloat();
+    }
+    placeShape();
+  }
+  ghost.addEventListener('pointerup', dropShape);
+  ghost.addEventListener('pointercancel', dropShape);
+  ghost.addEventListener('lostpointercapture', dropShape);
 
   // ---------- toolbar ----------
 
@@ -616,6 +716,8 @@
   function markWidth(m) {
     widthMul = m;
     for (const b of widthDots) b.classList.toggle('on', +b.dataset.mul === m);
+    // a floating shape gets the new line thickness right away
+    if (float) { float.w = 4 + 3 * widthMul; drawGhost(); }
     // the opener previews the chosen size
     sizeVars(widthNow, WIDTHS.indexOf(m));
     // with letters on, the next letters come out at the new size
@@ -638,6 +740,7 @@
   const tools = [...toolsEl.querySelectorAll('[data-tool]')];
 
   function selectTool(t) {
+    cancelShape();
     tool = t;
     if (t !== 'eraser' && t !== 'abc') lastDrawTool = t;
     for (const b of tools) b.classList.toggle('on', b.dataset.tool === t);
@@ -658,6 +761,8 @@
     color = hex;
     document.documentElement.style.setProperty('--ink', hex);
     for (const b of swatches) b.classList.toggle('on', b.dataset.color === hex);
+    // a floating shape is drawn in the colour picked while it floats
+    if (float) { float.color = hex; drawGhost(); }
   }
 
   function selectColor(hex) {
@@ -680,6 +785,7 @@
 
   function undo() {
     stopLive();
+    cancelShape();
     if (!ops.length) return false;
     const op = ops.pop();
     // Taking back a letter puts the cursor back where it was.
@@ -695,6 +801,7 @@
 
   function clearPage() {
     stopLive();
+    cancelShape();
     if (isBlank()) return false;
     whoosh();
     ops.push({ type: 'clear' });
@@ -926,6 +1033,7 @@
   window.addEventListener('pageshow', wake);
   // iOS threw the canvas away and gave back a blank one: draw everything again.
   paper.addEventListener('contextrestored', () => { stopLive(); redraw(); });
+  ghost.addEventListener('contextrestored', () => { drawGhost(); });
   window.addEventListener('orientationchange', () => setTimeout(fit, 300));
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
