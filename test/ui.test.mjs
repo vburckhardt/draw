@@ -39,6 +39,18 @@ for (const dark of [true, false]) {
     const p = document.getElementById('paper');
     return p.getContext('2d').getImageData(0, 0, p.width, p.height).data.every((v, i) => i % 4 !== 3 || v === 0);
   });
+  // ink bounding box (css px) of a canvas layer: [x0, x1, y0, y1] or null when blank
+  const inkBox = (id) => page.evaluate((id) => {
+    const c = document.getElementById(id);
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let x0 = Infinity, x1 = -1, y0 = Infinity, y1 = -1;
+    for (let i = 3; i < d.length; i += 4) if (d[i]) {
+      const k = i >> 2, x = k % c.width, y = (k / c.width) | 0;
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    return x1 < 0 ? null : [x0 / 2, x1 / 2, y0 / 2, y1 / 2];
+  }, id);
   const drawLine = async () => {
     await page.mouse.move(100, 400);
     await page.mouse.down();
@@ -110,23 +122,52 @@ for (const dark of [true, false]) {
   await tap('[data-action="undo"]', 200);
   ok(await blankPage(), 'undo restores a blank page');
 
-  // --- a shape stamps a big outline in the current colour, clear of the toolbar
+  // --- a picked shape floats on its own layer, big and clear of the toolbar
   await pick('shapes', '[data-shape="Titanic"]');
   ok((await openNow()).length === 0, 'shapes close after picking one');
-  ok(!(await blankPage()), 'the shape is on the page');
-  const inked = await page.evaluate(() => {
-    const p = document.getElementById('paper');
-    const d = p.getContext('2d').getImageData(0, 0, p.width, p.height).data;
-    let x0 = Infinity, x1 = -1;
-    for (let i = 3; i < d.length; i += 4) if (d[i]) { const x = (i >> 2) % p.width; x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
-    return [x0 / 2, x1 / 2];
-  });
-  ok(inked[1] - inked[0] > phone.width * 0.5, 'the shape is big');
-  ok(inked[1] < strip.x, 'the shape stays left of the toolbar');
-  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'marker', 'stamping keeps the drawing tool for colouring in');
+  ok(await blankPage(), 'a picked shape floats instead of stamping right away');
+  const g0 = await inkBox('ghost');
+  ok(!!g0, 'the picked shape floats on the ghost layer');
+  ok(g0 && g0[1] - g0[0] > phone.width * 0.5, 'the floating shape is big');
+  ok(g0 && g0[1] < strip.x, 'the floating shape stays left of the toolbar');
   await page.screenshot({ path: path.join(root, `shot-${mode}-shape.png`) });
+
+  // --- drag the floating shape somewhere else, release to place it there
+  const cx = (g0[0] + g0[1]) / 2, cy = (g0[2] + g0[3]) / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 40, cy + 120, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  ok(!(await blankPage()), 'releasing the drag drops the shape on the page');
+  ok(!(await inkBox('ghost')), 'the ghost layer is cleared after dropping');
+  const inked = await inkBox('paper');
+  ok(inked && inked[1] - inked[0] > phone.width * 0.5, 'the dropped shape is big');
+  ok(inked && inked[1] < strip.x, 'the dropped shape stays left of the toolbar');
+  ok(inked && Math.abs((inked[0] + inked[1]) / 2 - (cx + 40)) < 20 &&
+     Math.abs((inked[2] + inked[3]) / 2 - (cy + 120)) < 20, 'the shape was moved by the drag before dropping');
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'marker', 'dropping keeps the drawing tool for colouring in');
   await tap('[data-action="undo"]', 200);
   ok(await blankPage(), 'undo takes the shape back');
+
+  // --- tap to move: picking a shape and tapping elsewhere drops it centred there
+  await pick('shapes', '[data-shape="Star"]');
+  await page.mouse.click(150, 300);
+  await page.waitForTimeout(200);
+  const star = await inkBox('paper');
+  ok(!!star, 'a tap drops the shape on the page');
+  ok(star && Math.abs((star[0] + star[1]) / 2 - 150) < 20 && Math.abs((star[2] + star[3]) / 2 - 300) < 20,
+    'the shape lands centred on the tap');
+  await tap('[data-action="undo"]', 200);
+  ok(await blankPage(), 'undo takes the tapped shape back');
+
+  // --- picking another tool takes the floating shape back without placing it
+  await pick('shapes', '[data-shape="Fish"]');
+  ok(!!(await inkBox('ghost')), 'the fish floats after picking it');
+  await pick('tools', '[data-tool="crayon"]');
+  ok(!(await inkBox('ghost')) && await blankPage(), 'picking another tool cancels the floating shape');
+  ok(await page.locator('#tool-now').getAttribute('data-tool') === 'crayon', 'the tool switched while the shape floated');
+  await pick('tools', '[data-tool="marker"]');
 
   // --- the bin clears the page, and undo brings the drawing back
   await drawLine();
